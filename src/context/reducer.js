@@ -3,7 +3,7 @@ import {
   FETCH_LIBRARIES_REQUEST,
   FETCH_LIBRARIES_SUCCESS,
   FETCH_LIBRARIES_FAILURE,
-} from './actionTypes';
+} from './ActionTypes';
 
 const reducer = (state, action) => {
   switch (action.type) {

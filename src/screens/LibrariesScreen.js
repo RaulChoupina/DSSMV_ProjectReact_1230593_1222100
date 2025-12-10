@@ -1,87 +1,166 @@
 // src/screens/LibrariesScreen.js
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   FlatList,
   ActivityIndicator,
   StyleSheet,
+  TextInput,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 
 import AppContext from '../context/AppContext';
 import { fetchLibraries } from '../context/libraryActions';
 
 const LibrariesScreen = () => {
+  const navigation = useNavigation();
   const { state, dispatch } = useContext(AppContext);
-
   const { libraries, librariesLoading, librariesError } = state;
 
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // equivalente ao fetchLibraries() do Android -> chama ao montar
   useEffect(() => {
-    // chama a API quando o ecrã monta
     fetchLibraries(dispatch);
   }, [dispatch]);
 
-  const renderItem = ({ item }) => (
-    <View style={styles.item}>
-      <Text style={styles.name}>{item.name}</Text>
-      <Text style={styles.address}>{item.address}</Text>
-    </View>
-  );
+  // equivalente ao filter(String query)
+  const filteredLibraries = useMemo(() => {
+    const q = (searchQuery || '').trim().toLowerCase();
+    if (!q) return libraries;
+
+    return libraries.filter((lib) => {
+      const name = (lib.name || '').toLowerCase();
+      return name.includes(q);
+    });
+  }, [libraries, searchQuery]);
+
+  const safe = (s) => {
+    if (!s || s.trim() === '') return 'N/A';
+    return s;
+  };
+
+  const handlePressLibrary = (lib) => {
+    // equivalente ao Intent para LibraryDetailActivity
+    navigation.navigate('LibraryDetail', {
+      libraryId: lib.id,
+      libraryName: lib.name,
+    });
+  };
+
+  const renderLibraryItem = ({ item: lib }) => {
+    const isOpen = !!lib.open; // backend devolve boolean "open"
+    const backgroundStyle = isOpen
+        ? styles.libraryOpen
+        : styles.libraryClosed;
+
+    return (
+        <TouchableOpacity
+            style={[styles.libraryCard, backgroundStyle]}
+            onPress={() => handlePressLibrary(lib)}
+        >
+          <Text style={styles.libraryText}>
+            Library Name: {safe(lib.name)}
+          </Text>
+          <Text style={styles.libraryText}>
+            Address: {safe(lib.address)}
+          </Text>
+          <Text style={styles.libraryText}>
+            Open Status: {isOpen ? 'Open' : 'Closed'}
+          </Text>
+          <Text style={styles.libraryText}>
+            Open Days: {safe(lib.openDays)}
+          </Text>
+        </TouchableOpacity>
+    );
+  };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
-        <Text style={styles.title}>Bibliotecas</Text>
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.container}>
+          <Text style={styles.title}>Libraries</Text>
 
-        {librariesLoading && <ActivityIndicator size="large" />}
-
-        {librariesError && !librariesLoading && (
-          <Text style={styles.error}>Erro: {librariesError}</Text>
-        )}
-
-        {!librariesLoading && !librariesError && (
-          <FlatList
-            data={libraries}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
+          {/* Barra de pesquisa (equivalente à lupa do menu) */}
+          <TextInput
+              style={styles.searchInput}
+              placeholder="Pesquisar biblioteca..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
           />
-        )}
-      </View>
-    </SafeAreaView>
+
+          {librariesLoading && <ActivityIndicator size="large" />}
+
+          {librariesError && !librariesLoading && (
+              <Text style={styles.error}>Erro: {librariesError}</Text>
+          )}
+
+          {!librariesLoading && !librariesError && (
+              <FlatList
+                  data={filteredLibraries}
+                  keyExtractor={(item) => item.id}
+                  renderItem={renderLibraryItem}
+                  contentContainerStyle={styles.listContent}
+              />
+          )}
+
+          {/*
+          Aqui mais tarde podemos pôr um “Bottom bar” ou botões para:
+          - Add Library (equivalente ao bottomNav action_add)
+          - Edit/Delete (action_edit)
+          Por agora, foco na listagem + pesquisa + navegação.
+        */}
+        </View>
+      </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
+    backgroundColor: '#121212', // fundo escuro para os cards brilharem
   },
   container: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    padding: 16,
   },
   title: {
     fontSize: 22,
     fontWeight: '700',
-    marginBottom: 16,
+    color: '#ffffff',
+    marginBottom: 12,
   },
-  item: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+  searchInput: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
   },
-  name: {
-    fontSize: 16,
-    fontWeight: '600',
+  listContent: {
+    paddingBottom: 16,
   },
-  address: {
+  libraryCard: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  libraryOpen: {
+    backgroundColor: '#2e7d32', // verde
+  },
+  libraryClosed: {
+    backgroundColor: '#616161', // cinzento
+  },
+  libraryText: {
+    color: '#ffffff',
     fontSize: 14,
-    color: '#555',
+    marginBottom: 4,
   },
   error: {
-    marginTop: 8,
     color: 'red',
+    marginTop: 8,
   },
 });
 
