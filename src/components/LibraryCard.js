@@ -1,74 +1,119 @@
+// src/components/LibraryCard.js
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
-const LibraryCard = ({ library, onPress }) => {
-    // A API retorna 'open' como true/false
-    const isOpen = library.open;
+const safe = (s) => (s && String(s).trim() ? String(s) : 'N/A');
+
+const toHHMM = (time) => {
+    // aceita "09:00:00" ou "09:00"
+    if (!time) return 'N/A';
+    const str = String(time);
+    const parts = str.split(':');
+    if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+    return str;
+};
+
+export default function LibraryCard({ library, onPress, onEdit, onDelete }) {
+    const isOpen = !!library?.open;
 
     return (
-        <TouchableOpacity style={styles.card} onPress={onPress}>
-            <View style={styles.header}>
-                <Text style={styles.name}>{library.name}</Text>
-                {/* Badge de Aberto/Fechado */}
-                <View style={[styles.badge, { backgroundColor: isOpen ? '#4CAF50' : '#F44336' }]}>
-                    <Text style={styles.badgeText}>{isOpen ? 'Aberto' : 'Fechado'}</Text>
-                </View>
-            </View>
+      <TouchableOpacity activeOpacity={0.9} style={styles.card} onPress={onPress}>
+          <View style={styles.topRow}>
+              <Text style={styles.name} numberOfLines={1}>
+                  {safe(library?.name)}
+              </Text>
 
-            <Text style={styles.address}>{library.address}</Text>
+              <View style={[styles.badge, isOpen ? styles.badgeOpen : styles.badgeClosed]}>
+                  <Text style={styles.badgeText}>{isOpen ? 'Aberto' : 'Fechado'}</Text>
+              </View>
+          </View>
 
-            {/* Exemplo: "Aberto das 09:00 às 18:00" - Ajustar conforme formato de LocalTime da API */}
-            <Text style={styles.hours}>
-                {library.openTime?.hour}:{library.openTime?.minute || '00'} - {library.closeTime?.hour}:{library.closeTime?.minute || '00'}
-            </Text>
-        </TouchableOpacity>
+          <Text style={styles.address} numberOfLines={2}>
+              {safe(library?.address)}
+          </Text>
+
+          <View style={styles.bottomRow}>
+              <Text style={styles.hours}>
+                  {toHHMM(library?.openTime)} – {toHHMM(library?.closeTime)}
+              </Text>
+
+              <View style={styles.actions}>
+                  <TouchableOpacity onPress={onEdit} activeOpacity={0.85} style={[styles.actionBtn, styles.editBtn]}>
+                      <Text style={styles.actionText}>✏️</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={onDelete} activeOpacity={0.85} style={[styles.actionBtn, styles.deleteBtn]}>
+                      <Text style={styles.actionText}>🗑️</Text>
+                  </TouchableOpacity>
+              </View>
+          </View>
+      </TouchableOpacity>
     );
-};
+}
 
 const styles = StyleSheet.create({
     card: {
-        backgroundColor: '#fff',
-        padding: 16,
-        marginVertical: 8,
-        marginHorizontal: 16,
-        borderRadius: 8,
-        elevation: 3, // Sombra no Android
-        shadowColor: '#000', // Sombra no iOS
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 14,
+        marginBottom: 12,
+        shadowColor: '#000',
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 3,
     },
-    header: {
+    topRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 8,
+        gap: 10,
     },
     name: {
-        fontSize: 18,
-        fontWeight: 'bold',
         flex: 1,
-    },
-    address: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 4,
-    },
-    hours: {
-        fontSize: 12,
-        color: '#888',
-        fontStyle: 'italic',
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#111',
     },
     badge: {
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 999,
     },
+    badgeOpen: { backgroundColor: '#E7F7EC' },
+    badgeClosed: { backgroundColor: '#FDEAEA' },
     badgeText: {
-        color: '#fff',
-        fontSize: 10,
-        fontWeight: 'bold',
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#111',
     },
+    address: {
+        marginTop: 6,
+        color: '#666',
+        fontSize: 13,
+    },
+    bottomRow: {
+        marginTop: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    hours: {
+        color: '#888',
+        fontSize: 12,
+        fontStyle: 'italic',
+    },
+    actions: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    actionBtn: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    editBtn: { backgroundColor: '#EEF2FF' },
+    deleteBtn: { backgroundColor: '#FEE2E2' },
+    actionText: { fontSize: 18 },
 });
-
-export default LibraryCard;

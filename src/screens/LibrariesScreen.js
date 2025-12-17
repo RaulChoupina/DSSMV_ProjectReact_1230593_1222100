@@ -1,10 +1,5 @@
 // src/screens/LibrariesScreen.js
-import React, {
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -27,6 +22,8 @@ import {
   editLibrary,
   removeLibrary,
 } from '../context/libraryActions';
+
+import LibraryCard from '../components/LibraryCard';
 
 const DAYS = [
   'Monday',
@@ -72,17 +69,27 @@ const LibrariesScreen = () => {
 
   const filteredLibraries = useMemo(() => {
     const q = (searchQuery || '').trim().toLowerCase();
-    if (!q) return libraries;
 
-    return libraries.filter((lib) => {
-      const name = (lib.name || '').toLowerCase();
-      return name.includes(q);
+    // filtra
+    const base = !q
+      ? (libraries || [])
+      : (libraries || []).filter((lib) => {
+        const name = (lib.name || '').toLowerCase();
+        return name.includes(q);
+      });
+
+    // ordena: open=true primeiro, open=false no fim
+    // (se open vier undefined/null, tratamos como fechado)
+    return [...base].sort((a, b) => {
+      const ao = a?.open ? 1 : 0;
+      const bo = b?.open ? 1 : 0;
+      return bo - ao; // desc => 1 primeiro
     });
   }, [libraries, searchQuery]);
 
   const safe = (s) => {
-    if (!s || s.trim() === '') return 'N/A';
-    return s;
+    if (!s || String(s).trim() === '') return 'N/A';
+    return String(s);
   };
 
   const handlePressLibrary = (lib) => {
@@ -99,7 +106,38 @@ const LibrariesScreen = () => {
     return [...currentList, day];
   };
 
-  const handleLongPressLibrary = (lib) => {
+  const toBackendTime = (hhmm, fallback) => {
+    const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm || '');
+    if (!match) return fallback;
+    return `${match[1]}:${match[2]}:00`;
+  };
+
+  const buildOpenDaysString = (daysArray) =>
+    daysArray && daysArray.length > 0 ? daysArray.join(',') : '';
+
+  const confirmDelete = (lib) => {
+    Alert.alert(
+      'Apagar biblioteca',
+      `Queres mesmo apagar "${safe(lib.name)}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Apagar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeLibrary(dispatch, lib.id);
+            } catch (e) {
+              Alert.alert('Erro', 'Falhou ao apagar a biblioteca.');
+            }
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  };
+
+  const openEditFromCard = (lib) => {
     setSelectedLibrary(lib);
 
     setEditName(lib.name || '');
@@ -121,57 +159,8 @@ const LibrariesScreen = () => {
       setEditDays([]);
     }
 
-    Alert.alert(
-      safe(lib.name),
-      'O que pretende fazer?',
-      [
-        {
-          text: 'Editar',
-          onPress: () => setShowEditModal(true),
-        },
-        {
-          text: 'Apagar',
-          style: 'destructive',
-          onPress: () => confirmDelete(lib),
-        },
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-      ],
-      { cancelable: true },
-    );
+    setShowEditModal(true);
   };
-
-  const confirmDelete = (lib) => {
-    Alert.alert(
-      'Apagar biblioteca',
-      `Queres mesmo apagar "${safe(lib.name)}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Apagar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await removeLibrary(dispatch, lib.id);
-            } catch (e) {
-              Alert.alert('Erro', 'Falhou ao apagar a biblioteca.');
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  const toBackendTime = (hhmm, fallback) => {
-    const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm || '');
-    if (!match) return fallback;
-    return `${match[1]}:${match[2]}:00`;
-  };
-
-  const buildOpenDaysString = (daysArray) =>
-    daysArray && daysArray.length > 0 ? daysArray.join(',') : '';
 
   const handleAddLibrary = async () => {
     if (!newName.trim()) {
@@ -239,40 +228,6 @@ const LibrariesScreen = () => {
     }
   };
 
-  const renderLibraryItem = ({ item: lib }) => {
-    const isOpen = !!lib.open;
-    const backgroundStyle = isOpen
-      ? styles.libraryOpen
-      : styles.libraryClosed;
-
-    return (
-      <TouchableOpacity
-        style={[styles.libraryCard, backgroundStyle]}
-        onPress={() => handlePressLibrary(lib)}
-        onLongPress={() => handleLongPressLibrary(lib)}
-      >
-        <Text style={styles.libraryText}>
-          Library Name: {safe(lib.name)}
-        </Text>
-        <Text style={styles.libraryText}>
-          Address: {safe(lib.address)}
-        </Text>
-        <Text style={styles.libraryText}>
-          Open Status: {isOpen ? 'Open' : 'Closed'}
-        </Text>
-        <Text style={styles.libraryText}>
-          Open Days: {safe(lib.openDays)}
-        </Text>
-        <Text style={styles.libraryText}>
-          Open Time: {safe(lib.openTime)}
-        </Text>
-        <Text style={styles.libraryText}>
-          Close Time: {safe(lib.closeTime)}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
-
   const renderDaySelector = (currentDays, setDays) => (
     <View style={styles.daysRow}>
       {DAYS.map((day) => {
@@ -315,6 +270,15 @@ const LibrariesScreen = () => {
     return `${h}:${m}`;
   };
 
+  const renderLibraryItem = ({ item: lib }) => (
+    <LibraryCard
+      library={lib}
+      onPress={() => handlePressLibrary(lib)}
+      onEdit={() => openEditFromCard(lib)}
+      onDelete={() => confirmDelete(lib)}
+    />
+  );
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
@@ -337,7 +301,7 @@ const LibrariesScreen = () => {
         {!librariesLoading && !librariesError && (
           <FlatList
             data={filteredLibraries}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => String(item.id)}
             renderItem={renderLibraryItem}
             contentContainerStyle={styles.listContent}
           />
@@ -345,12 +309,15 @@ const LibrariesScreen = () => {
 
         {/* Botão Add Library */}
         <View style={styles.bottomBar}>
+          {/* Floating Action Button (Add) */}
           <TouchableOpacity
-            style={styles.addButton}
+            activeOpacity={0.85}
             onPress={() => setShowAddModal(true)}
+            style={styles.fab}
           >
-            <Text style={styles.addButtonText}>Add Library</Text>
+            <Text style={styles.fabIcon}>＋</Text>
           </TouchableOpacity>
+
         </View>
 
         {/* Modal ADD */}
@@ -439,9 +406,7 @@ const LibrariesScreen = () => {
             display="clock"
             onChange={(event, date) => {
               setShowAddOpenPicker(false);
-              if (date) {
-                setNewOpenTime(formatDateToHHMM(date));
-              }
+              if (date) setNewOpenTime(formatDateToHHMM(date));
             }}
           />
         )}
@@ -455,9 +420,7 @@ const LibrariesScreen = () => {
             display="clock"
             onChange={(event, date) => {
               setShowAddClosePicker(false);
-              if (date) {
-                setNewCloseTime(formatDateToHHMM(date));
-              }
+              if (date) setNewCloseTime(formatDateToHHMM(date));
             }}
           />
         )}
@@ -544,9 +507,7 @@ const LibrariesScreen = () => {
             display="clock"
             onChange={(event, date) => {
               setShowEditOpenPicker(false);
-              if (date) {
-                setEditOpenTime(formatDateToHHMM(date));
-              }
+              if (date) setEditOpenTime(formatDateToHHMM(date));
             }}
           />
         )}
@@ -560,9 +521,7 @@ const LibrariesScreen = () => {
             display="clock"
             onChange={(event, date) => {
               setShowEditClosePicker(false);
-              if (date) {
-                setEditCloseTime(formatDateToHHMM(date));
-              }
+              if (date) setEditCloseTime(formatDateToHHMM(date));
             }}
           />
         )}
@@ -572,160 +531,106 @@ const LibrariesScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#121212',
-  },
-  container: {
-    flex: 1,
-    padding: 16,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 12,
-  },
+  safe: { flex: 1, backgroundColor: '#121212' },
+  container: { flex: 1, padding: 16 },
+  title: { fontSize: 22, fontWeight: '700', color: '#ffffff', marginBottom: 12 },
+
   searchInput: {
     backgroundColor: '#ffffff',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 12,
-  },
-  listContent: {
-    paddingBottom: 16,
-  },
-  libraryCard: {
-    padding: 16,
     borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     marginBottom: 12,
   },
-  libraryOpen: {
-    backgroundColor: '#2e7d32',
-  },
-  libraryClosed: {
-    backgroundColor: '#616161',
-  },
-  libraryText: {
-    color: '#ffffff',
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  error: {
-    color: 'red',
-    marginTop: 8,
-  },
+
+  listContent: { paddingBottom: 16 },
+
+  error: { color: 'red', marginTop: 8 },
+
   bottomBar: {
-    paddingTop: 8,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#333',
   },
-  addButton: {
-    backgroundColor: '#1976d2',
-    borderRadius: 8,
-    paddingVertical: 10,
+  fab: {
+    position: 'absolute',
+    right: 18,
+    bottom: 18,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#525252',
     alignItems: 'center',
+    justifyContent: 'center',
+
+    zIndex: 999,
+    elevation: 12,
+
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
   },
-  addButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+
+  fabIcon: {
+    color: '#fff',
+    fontSize: 32,
+    fontWeight: '800',
+    lineHeight: 34,
   },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     padding: 24,
   },
-  modalContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
+  modalContainer: { backgroundColor: '#ffffff', borderRadius: 12, padding: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
+
   modalInput: {
     borderWidth: 1,
     borderColor: '#ccc',
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 10,
     marginBottom: 10,
   },
-  timeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  timeCol: {
-    flex: 1,
-    marginRight: 8,
-  },
-  timeLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
+
+  timeRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  timeCol: { flex: 1, marginRight: 8 },
+
+  timeLabel: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
+
   timeButton: {
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#ccc',
-    paddingVertical: 8,
+    paddingVertical: 10,
     alignItems: 'center',
     marginBottom: 8,
   },
-  timeButtonText: {
-    fontSize: 16,
-  },
-  daysRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 10,
-  },
+  timeButtonText: { fontSize: 16 },
+
+  daysRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 },
   dayChip: {
     borderWidth: 1,
     borderColor: '#aaa',
     borderRadius: 16,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     marginRight: 6,
     marginBottom: 6,
   },
-  dayChipSelected: {
-    backgroundColor: '#1976d2',
-    borderColor: '#1976d2',
-  },
-  dayChipText: {
-    fontSize: 12,
-    color: '#333',
-  },
-  dayChipTextSelected: {
-    color: '#fff',
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 8,
-  },
-  modalButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginLeft: 8,
-  },
-  modalButtonCancel: {
-    backgroundColor: '#ccc',
-  },
-  modalButtonConfirm: {
-    backgroundColor: '#1976d2',
-  },
-  modalButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
+  dayChipSelected: { backgroundColor: '#1976d2', borderColor: '#1976d2' },
+  dayChipText: { fontSize: 12, color: '#333' },
+  dayChipTextSelected: { color: '#fff' },
+
+  modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 },
+  modalButton: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, marginLeft: 8 },
+  modalButtonCancel: { backgroundColor: '#9e9e9e' },
+  modalButtonConfirm: { backgroundColor: '#1976d2' },
+  modalButtonText: { color: '#fff', fontWeight: '700' },
 });
 
 export default LibrariesScreen;

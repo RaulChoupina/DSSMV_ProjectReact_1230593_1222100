@@ -1,7 +1,7 @@
 // Service.js
 // Igual ao modelo das TPs: função genérica para falar com a API
 
-const BASE_URL = 'http://193.136.62.24/';
+export const BASE_URL = 'http://193.136.62.24/';
 
 export function makeHTTPRequest(path, request, success, failure) {
   const url = `${BASE_URL}${path}`;
