@@ -1,5 +1,10 @@
 // src/screens/LibrariesScreen.js
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   View,
   Text,
@@ -8,12 +13,30 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
+  Modal,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import AppContext from '../context/AppContext';
-import { fetchLibraries } from '../context/libraryActions';
+import {
+  fetchLibraries,
+  addLibrary,
+  editLibrary,
+  removeLibrary,
+} from '../context/libraryActions';
+
+const DAYS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
 
 const LibrariesScreen = () => {
   const navigation = useNavigation();
@@ -22,12 +45,31 @@ const LibrariesScreen = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
 
-  // equivalente ao fetchLibraries() do Android -> chama ao montar
+  // ADD
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newAddress, setNewAddress] = useState('');
+  const [newOpenTime, setNewOpenTime] = useState('09:00');
+  const [newCloseTime, setNewCloseTime] = useState('18:00');
+  const [newDays, setNewDays] = useState([]);
+  const [showAddOpenPicker, setShowAddOpenPicker] = useState(false);
+  const [showAddClosePicker, setShowAddClosePicker] = useState(false);
+
+  // EDIT
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editOpenTime, setEditOpenTime] = useState('09:00');
+  const [editCloseTime, setEditCloseTime] = useState('18:00');
+  const [editDays, setEditDays] = useState([]);
+  const [selectedLibrary, setSelectedLibrary] = useState(null);
+  const [showEditOpenPicker, setShowEditOpenPicker] = useState(false);
+  const [showEditClosePicker, setShowEditClosePicker] = useState(false);
+
   useEffect(() => {
     fetchLibraries(dispatch);
   }, [dispatch]);
 
-  // equivalente ao filter(String query)
   const filteredLibraries = useMemo(() => {
     const q = (searchQuery || '').trim().toLowerCase();
     if (!q) return libraries;
@@ -44,83 +86,495 @@ const LibrariesScreen = () => {
   };
 
   const handlePressLibrary = (lib) => {
-    // equivalente ao Intent para LibraryDetailActivity
     navigation.navigate('LibraryDetail', {
       libraryId: lib.id,
       libraryName: lib.name,
     });
   };
 
-  const renderLibraryItem = ({ item: lib }) => {
-    const isOpen = !!lib.open; // backend devolve boolean "open"
-    const backgroundStyle = isOpen
-        ? styles.libraryOpen
-        : styles.libraryClosed;
+  const toggleDayInList = (currentList, day) => {
+    if (currentList.includes(day)) {
+      return currentList.filter((d) => d !== day);
+    }
+    return [...currentList, day];
+  };
 
-    return (
-        <TouchableOpacity
-            style={[styles.libraryCard, backgroundStyle]}
-            onPress={() => handlePressLibrary(lib)}
-        >
-          <Text style={styles.libraryText}>
-            Library Name: {safe(lib.name)}
-          </Text>
-          <Text style={styles.libraryText}>
-            Address: {safe(lib.address)}
-          </Text>
-          <Text style={styles.libraryText}>
-            Open Status: {isOpen ? 'Open' : 'Closed'}
-          </Text>
-          <Text style={styles.libraryText}>
-            Open Days: {safe(lib.openDays)}
-          </Text>
-        </TouchableOpacity>
+  const handleLongPressLibrary = (lib) => {
+    setSelectedLibrary(lib);
+
+    setEditName(lib.name || '');
+    setEditAddress(lib.address || '');
+
+    const oTime = (lib.openTime || '09:00:00').split(':');
+    const cTime = (lib.closeTime || '18:00:00').split(':');
+    setEditOpenTime(`${oTime[0] || '09'}:${oTime[1] || '00'}`);
+    setEditCloseTime(`${cTime[0] || '18'}:${cTime[1] || '00'}`);
+
+    if (lib.openDays) {
+      setEditDays(
+        lib.openDays
+          .split(',')
+          .map((d) => d.trim())
+          .filter((d) => d.length > 0),
+      );
+    } else {
+      setEditDays([]);
+    }
+
+    Alert.alert(
+      safe(lib.name),
+      'O que pretende fazer?',
+      [
+        {
+          text: 'Editar',
+          onPress: () => setShowEditModal(true),
+        },
+        {
+          text: 'Apagar',
+          style: 'destructive',
+          onPress: () => confirmDelete(lib),
+        },
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true },
     );
   };
 
+  const confirmDelete = (lib) => {
+    Alert.alert(
+      'Apagar biblioteca',
+      `Queres mesmo apagar "${safe(lib.name)}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Apagar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeLibrary(dispatch, lib.id);
+            } catch (e) {
+              Alert.alert('Erro', 'Falhou ao apagar a biblioteca.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const toBackendTime = (hhmm, fallback) => {
+    const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm || '');
+    if (!match) return fallback;
+    return `${match[1]}:${match[2]}:00`;
+  };
+
+  const buildOpenDaysString = (daysArray) =>
+    daysArray && daysArray.length > 0 ? daysArray.join(',') : '';
+
+  const handleAddLibrary = async () => {
+    if (!newName.trim()) {
+      Alert.alert('Erro', 'Name is required');
+      return;
+    }
+    if (!newAddress.trim()) {
+      Alert.alert('Erro', 'Address is required');
+      return;
+    }
+
+    const body = {
+      name: newName.trim(),
+      address: newAddress.trim(),
+      openDays: buildOpenDaysString(newDays),
+      openTime: toBackendTime(newOpenTime, '09:00:00'),
+      closeTime: toBackendTime(newCloseTime, '18:00:00'),
+    };
+
+    try {
+      await addLibrary(dispatch, body);
+      setNewName('');
+      setNewAddress('');
+      setNewOpenTime('09:00');
+      setNewCloseTime('18:00');
+      setNewDays([]);
+      setShowAddModal(false);
+    } catch (e) {
+      Alert.alert('Erro', 'Falhou ao adicionar biblioteca.');
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedLibrary) return;
+
+    if (!editName.trim()) {
+      Alert.alert('Erro', 'Name is required');
+      return;
+    }
+    if (!editAddress.trim()) {
+      Alert.alert('Erro', 'Address is required');
+      return;
+    }
+
+    const body = {
+      name: editName.trim(),
+      address: editAddress.trim(),
+      openDays: buildOpenDaysString(editDays),
+      openTime: toBackendTime(
+        editOpenTime,
+        selectedLibrary.openTime || '09:00:00',
+      ),
+      closeTime: toBackendTime(
+        editCloseTime,
+        selectedLibrary.closeTime || '18:00:00',
+      ),
+    };
+
+    try {
+      await editLibrary(dispatch, selectedLibrary.id, body);
+      setShowEditModal(false);
+      setSelectedLibrary(null);
+    } catch (e) {
+      Alert.alert('Erro', 'Falhou ao atualizar biblioteca.');
+    }
+  };
+
+  const renderLibraryItem = ({ item: lib }) => {
+    const isOpen = !!lib.open;
+    const backgroundStyle = isOpen
+      ? styles.libraryOpen
+      : styles.libraryClosed;
+
+    return (
+      <TouchableOpacity
+        style={[styles.libraryCard, backgroundStyle]}
+        onPress={() => handlePressLibrary(lib)}
+        onLongPress={() => handleLongPressLibrary(lib)}
+      >
+        <Text style={styles.libraryText}>
+          Library Name: {safe(lib.name)}
+        </Text>
+        <Text style={styles.libraryText}>
+          Address: {safe(lib.address)}
+        </Text>
+        <Text style={styles.libraryText}>
+          Open Status: {isOpen ? 'Open' : 'Closed'}
+        </Text>
+        <Text style={styles.libraryText}>
+          Open Days: {safe(lib.openDays)}
+        </Text>
+        <Text style={styles.libraryText}>
+          Open Time: {safe(lib.openTime)}
+        </Text>
+        <Text style={styles.libraryText}>
+          Close Time: {safe(lib.closeTime)}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderDaySelector = (currentDays, setDays) => (
+    <View style={styles.daysRow}>
+      {DAYS.map((day) => {
+        const selected = currentDays.includes(day);
+        return (
+          <TouchableOpacity
+            key={day}
+            style={[
+              styles.dayChip,
+              selected && styles.dayChipSelected,
+            ]}
+            onPress={() => setDays(toggleDayInList(currentDays, day))}
+          >
+            <Text
+              style={[
+                styles.dayChipText,
+                selected && styles.dayChipTextSelected,
+              ]}
+            >
+              {day[0]}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
+  const parseHHMMToDate = (hhmm, defaultHour = 9, defaultMinute = 0) => {
+    const d = new Date();
+    const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm || '');
+    const h = match ? parseInt(match[1], 10) : defaultHour;
+    const m = match ? parseInt(match[2], 10) : defaultMinute;
+    d.setHours(h, m, 0, 0);
+    return d;
+  };
+
+  const formatDateToHHMM = (date) => {
+    const h = date.getHours().toString().padStart(2, '0');
+    const m = date.getMinutes().toString().padStart(2, '0');
+    return `${h}:${m}`;
+  };
+
   return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.container}>
-          <Text style={styles.title}>Libraries</Text>
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Libraries</Text>
 
-          {/* Barra de pesquisa (equivalente à lupa do menu) */}
-          <TextInput
-              style={styles.searchInput}
-              placeholder="Pesquisar biblioteca..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
+        {/* Barra de pesquisa */}
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Pesquisar biblioteca..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+
+        {librariesLoading && <ActivityIndicator size="large" />}
+
+        {librariesError && !librariesLoading && (
+          <Text style={styles.error}>Erro: {librariesError}</Text>
+        )}
+
+        {!librariesLoading && !librariesError && (
+          <FlatList
+            data={filteredLibraries}
+            keyExtractor={(item) => item.id}
+            renderItem={renderLibraryItem}
+            contentContainerStyle={styles.listContent}
           />
+        )}
 
-          {librariesLoading && <ActivityIndicator size="large" />}
-
-          {librariesError && !librariesLoading && (
-              <Text style={styles.error}>Erro: {librariesError}</Text>
-          )}
-
-          {!librariesLoading && !librariesError && (
-              <FlatList
-                  data={filteredLibraries}
-                  keyExtractor={(item) => item.id}
-                  renderItem={renderLibraryItem}
-                  contentContainerStyle={styles.listContent}
-              />
-          )}
-
-          {/*
-          Aqui mais tarde podemos pôr um “Bottom bar” ou botões para:
-          - Add Library (equivalente ao bottomNav action_add)
-          - Edit/Delete (action_edit)
-          Por agora, foco na listagem + pesquisa + navegação.
-        */}
+        {/* Botão Add Library */}
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => setShowAddModal(true)}
+          >
+            <Text style={styles.addButtonText}>Add Library</Text>
+          </TouchableOpacity>
         </View>
-      </SafeAreaView>
+
+        {/* Modal ADD */}
+        <Modal
+          visible={showAddModal}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowAddModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Add New Library</Text>
+
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Name"
+                value={newName}
+                onChangeText={setNewName}
+              />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Address"
+                value={newAddress}
+                onChangeText={setNewAddress}
+              />
+
+              <View style={styles.timeRow}>
+                <View style={styles.timeCol}>
+                  <Text style={styles.timeLabel}>Open</Text>
+                  <TouchableOpacity
+                    style={styles.timeButton}
+                    onPress={() => setShowAddOpenPicker(true)}
+                  >
+                    <Text style={styles.timeButtonText}>
+                      {newOpenTime || '09:00'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.timeCol}>
+                  <Text style={styles.timeLabel}>Close</Text>
+                  <TouchableOpacity
+                    style={styles.timeButton}
+                    onPress={() => setShowAddClosePicker(true)}
+                  >
+                    <Text style={styles.timeButtonText}>
+                      {newCloseTime || '18:00'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <Text style={styles.timeLabel}>Open Days</Text>
+              {renderDaySelector(newDays, setNewDays)}
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => {
+                    setShowAddModal(false);
+                    setNewName('');
+                    setNewAddress('');
+                    setNewOpenTime('09:00');
+                    setNewCloseTime('18:00');
+                    setNewDays([]);
+                  }}
+                >
+                  <Text style={styles.modalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonConfirm]}
+                  onPress={handleAddLibrary}
+                >
+                  <Text style={styles.modalButtonText}>Add</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Picker de hora para ADD (Open) */}
+        {showAddOpenPicker && (
+          <DateTimePicker
+            value={parseHHMMToDate(newOpenTime, 9, 0)}
+            mode="time"
+            is24Hour
+            display="clock"
+            onChange={(event, date) => {
+              setShowAddOpenPicker(false);
+              if (date) {
+                setNewOpenTime(formatDateToHHMM(date));
+              }
+            }}
+          />
+        )}
+
+        {/* Picker de hora para ADD (Close) */}
+        {showAddClosePicker && (
+          <DateTimePicker
+            value={parseHHMMToDate(newCloseTime, 18, 0)}
+            mode="time"
+            is24Hour
+            display="clock"
+            onChange={(event, date) => {
+              setShowAddClosePicker(false);
+              if (date) {
+                setNewCloseTime(formatDateToHHMM(date));
+              }
+            }}
+          />
+        )}
+
+        {/* Modal EDIT */}
+        <Modal
+          visible={showEditModal}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowEditModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Edit Library</Text>
+
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Name"
+                value={editName}
+                onChangeText={setEditName}
+              />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Address"
+                value={editAddress}
+                onChangeText={setEditAddress}
+              />
+
+              <View style={styles.timeRow}>
+                <View style={styles.timeCol}>
+                  <Text style={styles.timeLabel}>Open</Text>
+                  <TouchableOpacity
+                    style={styles.timeButton}
+                    onPress={() => setShowEditOpenPicker(true)}
+                  >
+                    <Text style={styles.timeButtonText}>
+                      {editOpenTime || '09:00'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.timeCol}>
+                  <Text style={styles.timeLabel}>Close</Text>
+                  <TouchableOpacity
+                    style={styles.timeButton}
+                    onPress={() => setShowEditClosePicker(true)}
+                  >
+                    <Text style={styles.timeButtonText}>
+                      {editCloseTime || '18:00'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <Text style={styles.timeLabel}>Open Days</Text>
+              {renderDaySelector(editDays, setEditDays)}
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => {
+                    setShowEditModal(false);
+                    setSelectedLibrary(null);
+                  }}
+                >
+                  <Text style={styles.modalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonConfirm]}
+                  onPress={handleSaveEdit}
+                >
+                  <Text style={styles.modalButtonText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Picker de hora para EDIT (Open) */}
+        {showEditOpenPicker && (
+          <DateTimePicker
+            value={parseHHMMToDate(editOpenTime, 9, 0)}
+            mode="time"
+            is24Hour
+            display="clock"
+            onChange={(event, date) => {
+              setShowEditOpenPicker(false);
+              if (date) {
+                setEditOpenTime(formatDateToHHMM(date));
+              }
+            }}
+          />
+        )}
+
+        {/* Picker de hora para EDIT (Close) */}
+        {showEditClosePicker && (
+          <DateTimePicker
+            value={parseHHMMToDate(editCloseTime, 18, 0)}
+            mode="time"
+            is24Hour
+            display="clock"
+            onChange={(event, date) => {
+              setShowEditClosePicker(false);
+              if (date) {
+                setEditCloseTime(formatDateToHHMM(date));
+              }
+            }}
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#121212', // fundo escuro para os cards brilharem
+    backgroundColor: '#121212',
   },
   container: {
     flex: 1,
@@ -148,10 +602,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   libraryOpen: {
-    backgroundColor: '#2e7d32', // verde
+    backgroundColor: '#2e7d32',
   },
   libraryClosed: {
-    backgroundColor: '#616161', // cinzento
+    backgroundColor: '#616161',
   },
   libraryText: {
     color: '#ffffff',
@@ -161,6 +615,116 @@ const styles = StyleSheet.create({
   error: {
     color: 'red',
     marginTop: 8,
+  },
+  bottomBar: {
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+  },
+  addButton: {
+    backgroundColor: '#1976d2',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  addButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  timeCol: {
+    flex: 1,
+    marginRight: 8,
+  },
+  timeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  timeButton: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    paddingVertical: 8,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  timeButtonText: {
+    fontSize: 16,
+  },
+  daysRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+  dayChip: {
+    borderWidth: 1,
+    borderColor: '#aaa',
+    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 6,
+    marginBottom: 6,
+  },
+  dayChipSelected: {
+    backgroundColor: '#1976d2',
+    borderColor: '#1976d2',
+  },
+  dayChipText: {
+    fontSize: 12,
+    color: '#333',
+  },
+  dayChipTextSelected: {
+    color: '#fff',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+  },
+  modalButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  modalButtonCancel: {
+    backgroundColor: '#ccc',
+  },
+  modalButtonConfirm: {
+    backgroundColor: '#1976d2',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });
 
