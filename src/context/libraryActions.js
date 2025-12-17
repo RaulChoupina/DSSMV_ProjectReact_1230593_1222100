@@ -4,6 +4,9 @@ import {
   FETCH_LIBRARIES_REQUEST,
   FETCH_LIBRARIES_SUCCESS,
   FETCH_LIBRARIES_FAILURE,
+  FETCH_LIBRARY_BOOKS_REQUEST,
+  FETCH_LIBRARY_BOOKS_SUCCESS,
+  FETCH_LIBRARY_BOOKS_FAILURE,
 } from './ActionTypes';
 
 /* =========================
@@ -48,6 +51,35 @@ export function fetchLibraries(dispatch) {
   const failure = (errMsg) => {
     console.log('fetchLibraries error:', errMsg);
     dispatch(fetchLibrariesFailure(errMsg));
+  };
+
+  makeHTTPRequest(path, request, success, failure);
+}
+
+export function fetchLibraryBooks(dispatch, libraryId) {
+  dispatch({ type: FETCH_LIBRARY_BOOKS_REQUEST });
+
+
+  const path = `/v1/library/${libraryId}/book`;
+
+  const request = {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  };
+
+  const success = (data) => {
+    // data deve ser um array de livros
+    dispatch({
+      type: FETCH_LIBRARY_BOOKS_SUCCESS,
+      payload: { books: Array.isArray(data) ? data : (data?.books ?? []) },
+    });
+  };
+
+  const failure = (errMsg) => {
+    dispatch({
+      type: FETCH_LIBRARY_BOOKS_FAILURE,
+      payload: { error: errMsg },
+    });
   };
 
   makeHTTPRequest(path, request, success, failure);
@@ -121,6 +153,9 @@ export function removeLibrary(dispatch, id) {
     console.log('removeLibrary error:', errMsg);
     throw new Error(errMsg);
   };
+
+
+
 
   makeHTTPRequest(path, request, success, failure);
 }

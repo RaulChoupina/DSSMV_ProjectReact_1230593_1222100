@@ -1,32 +1,56 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { BASE_URL } from '../service/service';
+
+const extractImageId = (cover) => {
+    const rel = cover?.smallUrl || cover?.mediumUrl || cover?.largeUrl;
+    if (!rel) return null;
+
+    const clean = rel.split('?')[0];
+    const parts = clean.split('/');
+    return parts[parts.length - 1] || null;
+};
+
+const buildCoverFromSwagger = (cover) => {
+    const imageId = extractImageId(cover);
+    if (!imageId) return null;
+
+    const base = BASE_URL.replace(/\/$/, '');
+    return `${base}/v1/assets/cover/${imageId}`;
+};
 
 const BookCard = ({ book, onPress }) => {
-    // A API retorna authors como array de objetos
-    const authorName = book.authors && book.authors.length > 0
-        ? book.authors[0].name
+    const authorName =
+      Array.isArray(book?.authors) && book.authors.length > 0
+        ? book.authors.map((a) => a?.name).filter(Boolean).join(', ')
         : 'Autor desconhecido';
 
-    // Fallback se não houver capa
-    const imageUri = book.cover?.mediumUrl || 'https://via.placeholder.com/100x150';
+    const coverUrl = buildCoverFromSwagger(book?.cover);
 
     return (
-        <TouchableOpacity style={styles.container} onPress={onPress}>
+      <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.85}>
+          {coverUrl ? (
             <Image
-                source={{ uri: imageUri }}
-                style={styles.cover}
-                resizeMode="cover"
+              source={{ uri: coverUrl }}
+              style={styles.cover}
+              resizeMode="cover"
+              onError={(e) => console.log('IMG ERROR:', e.nativeEvent, coverUrl)}
             />
-            <View style={styles.info}>
-                <Text style={styles.title} numberOfLines={2}>{book.title}</Text>
-                <Text style={styles.author}>{authorName}</Text>
-
-                {/* Se quiser mostrar o ano de publicação */}
-                {book.publishDate && (
-                    <Text style={styles.year}>{book.publishDate.split('-')[0]}</Text>
-                )}
+          ) : (
+            <View style={styles.coverFallback}>
+                <Text style={styles.coverFallbackText}>No{'\n'}Cover</Text>
             </View>
-        </TouchableOpacity>
+          )}
+
+          <View style={styles.info}>
+              <Text style={styles.title} numberOfLines={2}>
+                  {book?.title || 'Untitled'}
+              </Text>
+              <Text style={styles.author} numberOfLines={2}>
+                  {authorName}
+              </Text>
+          </View>
+      </TouchableOpacity>
     );
 };
 
@@ -34,36 +58,29 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         backgroundColor: '#fff',
-        borderRadius: 8,
+        borderRadius: 12,
         overflow: 'hidden',
         marginBottom: 12,
         marginHorizontal: 16,
         elevation: 2,
     },
-    cover: {
+    cover: { width: 80, height: 120, backgroundColor: '#eee' },
+    coverFallback: {
         width: 80,
         height: 120,
-    },
-    info: {
-        flex: 1,
-        padding: 12,
+        alignItems: 'center',
         justifyContent: 'center',
+        backgroundColor: '#eee',
     },
-    title: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginBottom: 4,
-        color: '#333',
-    },
-    author: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 4,
-    },
-    year: {
-        fontSize: 12,
+    coverFallbackText: {
+        fontSize: 11,
         color: '#999',
+        fontWeight: '700',
+        textAlign: 'center',
     },
+    info: { flex: 1, padding: 12, justifyContent: 'center' },
+    title: { fontSize: 16, fontWeight: 'bold', marginBottom: 4, color: '#333' },
+    author: { fontSize: 14, color: '#666' },
 });
 
 export default BookCard;
