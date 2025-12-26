@@ -7,6 +7,12 @@ import {
   FETCH_LIBRARY_BOOKS_REQUEST,
   FETCH_LIBRARY_BOOKS_SUCCESS,
   FETCH_LIBRARY_BOOKS_FAILURE,
+  ADD_LIBRARY_BOOK_REQUEST,
+  ADD_LIBRARY_BOOK_SUCCESS,
+  ADD_LIBRARY_BOOK_FAILURE,
+  UPDATE_LIBRARY_BOOK_REQUEST,
+  UPDATE_LIBRARY_BOOK_SUCCESS,
+  UPDATE_LIBRARY_BOOK_FAILURE,
 } from './ActionTypes';
 
 const reducer = (state, action) => {
@@ -52,6 +58,47 @@ const reducer = (state, action) => {
         ...state,
         libraryBooksLoading: false,
         libraryBooksError: action.payload.error,
+      };
+
+    case ADD_LIBRARY_BOOK_REQUEST:
+      return {
+        ...state,
+        booksLoading: true,
+        booksError: null
+      };
+
+    case ADD_LIBRARY_BOOK_SUCCESS:
+      return {
+        ...state,
+        booksLoading: false
+      };
+
+    case ADD_LIBRARY_BOOK_FAILURE:
+      return {
+        ...state,
+        booksLoading: false,
+        booksError: action.payload.error
+      };
+
+    case UPDATE_LIBRARY_BOOK_REQUEST:
+      return {
+        ...state,
+        booksLoading: true,
+        booksError: null
+
+      };
+
+    case UPDATE_LIBRARY_BOOK_SUCCESS:
+      return {
+        ...state,
+        booksLoading: false
+      };
+
+    case UPDATE_LIBRARY_BOOK_FAILURE:
+      return {
+        ...state,
+        booksLoading: false,
+        booksError: action.payload.error
       };
 
     default:
