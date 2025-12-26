@@ -26,19 +26,19 @@ function RootNavigator() {
             <Stack.Screen
                 name="Libraries"
                 component={LibrariesScreen}
-                options={{ title: 'Libraries' }}
+                options={{ title: 'Libraries',headerShown: false }}
             />
             <Stack.Screen
                 name="LibraryDetail"
                 component={LibraryDetailScreen}
                 options={({ route }) => ({
-                    title: route?.params?.libraryName || 'Library Detail',
+                    title: route?.params?.libraryName || 'Library Detail',headerShown: false
                 })}
             />
             <Stack.Screen
                 name="Users"
                 component={UsersScreen}
-                options={{ title: 'Users' }}
+                options={{ title: 'Users',headerShown: false }}
             />
         </Stack.Navigator>
     );
