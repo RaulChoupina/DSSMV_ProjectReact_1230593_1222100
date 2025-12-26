@@ -6,122 +6,124 @@ import {
     Pressable,
     StatusBar
 } from 'react-native';
-// Importar ícones do Material Design
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const MainScreen = ({ navigation }) => {
 
-    // Função auxiliar para renderizar um botão personalizado
-    const renderCustomButton = (title, routeName, iconName, bgColor, pressedColor) => (
+    const renderButton = (title, route, icon) => (
         <Pressable
-            onPress={() => navigation.navigate(routeName)}
-            // O style do Pressable recebe uma função que nos diz se está a ser pressionado ou não
+            onPress={() => navigation.navigate(route)}
             style={({ pressed }) => [
-                styles.buttonContainer,
-                { backgroundColor: pressed ? pressedColor : bgColor }, // Muda a cor ao carregar
-                pressed && styles.buttonPressed // Adiciona efeito de escala/opacidade
+                styles.cardButton,
+                pressed && styles.cardPressed
             ]}
         >
-            <Icon name={iconName} size={24} color="white" style={styles.icon} />
-            <Text style={styles.buttonText}>{title}</Text>
-            <Icon name="chevron-right" size={24} color="rgba(255,255,255,0.5)" style={styles.chevron} />
+            <View style={styles.iconContainer}>
+                <Icon name={icon} size={26} color="#4DA3FF" />
+            </View>
+
+            <Text style={styles.cardText}>{title}</Text>
+
+            <Icon name="chevron-right" size={26} color="#666" />
         </Pressable>
     );
 
     return (
-        <View style={styles.mainContainer}>
-            <StatusBar barStyle="dark-content" backgroundColor="#f5f7fa" />
+        <View style={styles.container}>
+            <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
-            {/* Header Area */}
-            <View style={styles.headerContainer}>
-                <Text style={styles.welcomeTitle}>Bem-vindo ao DSSMV</Text>
-                <Text style={styles.welcomeSubtitle}>Gerencie a sua biblioteca e utilizadores.</Text>
+            {/* HEADER */}
+            <View style={styles.header}>
+                <Text style={styles.title}>DSSMV</Text>
+                <Text style={styles.subtitle}>
+                    Sistema de gestão de bibliotecas
+                </Text>
             </View>
 
-            {/* Actions Area */}
-            <View style={styles.actionsContainer}>
-                {/* Botão Bibliotecas (Azul) */}
-                {renderCustomButton(
-                    "Ver Bibliotecas",
-                    "Libraries",
-                    "local-library", // Nome do ícone
-                    "#0066CC",       // Cor normal
-                    "#0052a3"        // Cor ao pressionar (mais escura)
+            {/* ACTIONS */}
+            <View style={styles.actions}>
+                {renderButton(
+                    'Bibliotecas',
+                    'Libraries',
+                    'local-library'
                 )}
 
-                {/* Botão Utilizadores (Verde/Azulado) */}
-                {renderCustomButton(
-                    "Ver Utilizadores",
-                    "Users",
-                    "people",        // Nome do ícone
-                    "#00A896",       // Cor normal
-                    "#008f80"        // Cor ao pressionar
+                {renderButton(
+                    'Utilizadores',
+                    'Users',
+                    'people'
                 )}
             </View>
         </View>
     );
 };
 
+
+
 const styles = StyleSheet.create({
-    mainContainer: {
+    container: {
         flex: 1,
-        backgroundColor: '#f5f7fa', // Um cinza muito claro, quase branco, para o fundo
-        padding: 24,
+        backgroundColor: '#0b1220', // fundo principal
     },
-    headerContainer: {
-        marginTop: 60,
-        marginBottom: 40,
-        alignItems: 'flex-start',
+
+    /* HEADER */
+    header: {
+        paddingTop: 80,
+        paddingBottom: 40,
+        paddingHorizontal: 24,
+        backgroundColor: '#0f172a', // azul muito escuro
+        borderBottomWidth: 1,
+        borderBottomColor: '#1e293b',
     },
-    welcomeTitle: {
-        fontSize: 28,
+    title: {
+        fontSize: 32,
         fontWeight: 'bold',
-        color: '#1a1a1a',
+        color: '#e5e7eb',
         marginBottom: 8,
     },
-    welcomeSubtitle: {
-        fontSize: 16,
-        color: '#666',
+    subtitle: {
+        fontSize: 15,
+        color: '#9ca3af',
+        lineHeight: 22,
     },
-    actionsContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        gap: 20, // Espaço entre os botões (funciona em RN moderno)
+
+    /* ACTIONS */
+    actions: {
+        padding: 24,
+        gap: 20,
     },
-    // Estilos dos Botões
-    buttonContainer: {
+
+    cardButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 24,
-        borderRadius: 16, // Bordas bem arredondadas
-        width: '100%',
-        // Sombras suaves
-        shadowColor: "#000",
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.15,
-        shadowRadius: 5,
-        elevation: 6,
+        backgroundColor: '#111827',
+        borderRadius: 14,
+        paddingVertical: 18,
+        paddingHorizontal: 16,
+        borderWidth: 1,
+        borderColor: '#1f2933',
     },
-    buttonPressed: {
-        opacity: 0.9,
-        transform: [{ scale: 0.98 }] // Ligeiro efeito de "encolher" ao clicar
+    cardPressed: {
+        backgroundColor: '#0f172a',
+        transform: [{ scale: 0.98 }],
     },
-    icon: {
+
+    iconContainer: {
+        width: 46,
+        height: 46,
+        borderRadius: 12,
+        backgroundColor: '#0b1d33',
+        alignItems: 'center',
+        justifyContent: 'center',
         marginRight: 16,
     },
-    buttonText: {
-        flex: 1, // Ocupa o espaço disponível
-        color: 'white',
+
+    cardText: {
+        flex: 1,
         fontSize: 18,
-        fontWeight: '600',
+        color: '#e5e7eb',
+        fontWeight: '500',
     },
-    chevron: {
-        marginLeft: 8,
-    }
 });
 
 export default MainScreen;

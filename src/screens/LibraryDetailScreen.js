@@ -175,7 +175,7 @@ export default function LibraryDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: '#121212' },
+    safe: { flex: 1, backgroundColor: '#0b1220' },
     container: { flex: 1, padding: 16 },
 
     title: { fontSize: 22, fontWeight: '800', color: '#fff' },
