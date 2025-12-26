@@ -56,35 +56,6 @@ export function fetchLibraries(dispatch) {
   makeHTTPRequest(path, request, success, failure);
 }
 
-export function fetchLibraryBooks(dispatch, libraryId) {
-  dispatch({ type: FETCH_LIBRARY_BOOKS_REQUEST });
-
-
-  const path = `/v1/library/${libraryId}/book`;
-
-  const request = {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-  };
-
-  const success = (data) => {
-    // data deve ser um array de livros
-    dispatch({
-      type: FETCH_LIBRARY_BOOKS_SUCCESS,
-      payload: { books: Array.isArray(data) ? data : (data?.books ?? []) },
-    });
-  };
-
-  const failure = (errMsg) => {
-    dispatch({
-      type: FETCH_LIBRARY_BOOKS_FAILURE,
-      payload: { error: errMsg },
-    });
-  };
-
-  makeHTTPRequest(path, request, success, failure);
-}
-
 // POST /libraries
 export function addLibrary(dispatch, libraryData) {
   const path = '/v1/library';
@@ -136,14 +107,17 @@ export function editLibrary(dispatch, id, libraryData) {
 }
 
 // DELETE /libraries/{id}
-export function removeLibrary(dispatch, id) {
+export async function removeLibrary(dispatch, id) {
   const path = `/v1/library/${id}`;
+
   const request = {
     method: 'DELETE',
     headers: {
       Accept: 'application/json',
     },
   };
+
+
 
   const success = (_data) => {
     fetchLibraries(dispatch);
