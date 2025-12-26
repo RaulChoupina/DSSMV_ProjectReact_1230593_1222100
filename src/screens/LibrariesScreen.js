@@ -288,6 +288,7 @@ const LibrariesScreen = () => {
         <TextInput
           style={styles.searchInput}
           placeholder="Pesquisar biblioteca..."
+          placeholderTextColor='#FFFFFF'
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -531,27 +532,52 @@ const LibrariesScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#121212' },
-  container: { flex: 1, padding: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: '#ffffff', marginBottom: 12 },
+  safe: {
+    flex: 1,
+    backgroundColor: '#0b1220',
+  },
 
-  searchInput: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  container: {
+    flex: 1,
+    padding: 16,
+  },
+
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#e5e7eb',
     marginBottom: 12,
   },
 
-  listContent: { paddingBottom: 16 },
+  /* SEARCH */
+  searchInput: {
+    backgroundColor: '#111827',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+    color: '#e5e7eb',
+    borderWidth: 1,
+    borderColor: '#1f2933',
+  },
 
-  error: { color: 'red', marginTop: 8 },
+  listContent: {
+    paddingBottom: 120,
+  },
 
+  error: {
+    color: '#f87171',
+    marginTop: 8,
+  },
+
+  /* BOTTOM BAR */
   bottomBar: {
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: '#1f2933',
   },
+
+  /* FAB */
   fab: {
     position: 'absolute',
     right: 18,
@@ -559,7 +585,7 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: '#525252',
+    backgroundColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
 
@@ -567,7 +593,7 @@ const styles = StyleSheet.create({
     elevation: 12,
 
     shadowColor: '#000',
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.35,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 6 },
   },
@@ -579,58 +605,131 @@ const styles = StyleSheet.create({
     lineHeight: 34,
   },
 
+  /* MODAL */
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(2,6,23,0.85)',
     justifyContent: 'center',
     padding: 24,
   },
-  modalContainer: { backgroundColor: '#ffffff', borderRadius: 12, padding: 16 },
-  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
 
-  modalInput: {
+  modalContainer: {
+    backgroundColor: '#0f172a',
+    borderRadius: 16,
+    padding: 18,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    marginBottom: 10,
+    borderColor: '#1f2933',
   },
 
-  timeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  timeCol: { flex: 1, marginRight: 8 },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+    color: '#e5e7eb',
+  },
 
-  timeLabel: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
+  modalInput: {
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1f2933',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 10,
+    color: '#e5e7eb',
+  },
+
+  /* TIME */
+  timeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+
+  timeCol: {
+    flex: 1,
+    marginRight: 8,
+  },
+
+  timeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+    color: '#9ca3af',
+  },
 
   timeButton: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#ccc',
-    paddingVertical: 10,
+    borderColor: '#1f2933',
+    paddingVertical: 12,
     alignItems: 'center',
     marginBottom: 8,
+    backgroundColor: '#111827',
   },
-  timeButtonText: { fontSize: 16 },
 
-  daysRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 },
+  timeButtonText: {
+    fontSize: 16,
+    color: '#e5e7eb',
+  },
+
+  /* DAYS */
+  daysRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+
   dayChip: {
     borderWidth: 1,
-    borderColor: '#aaa',
+    borderColor: '#1f2933',
     borderRadius: 16,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     marginRight: 6,
     marginBottom: 6,
+    backgroundColor: '#0b1220',
   },
-  dayChipSelected: { backgroundColor: '#1976d2', borderColor: '#1976d2' },
-  dayChipText: { fontSize: 12, color: '#333' },
-  dayChipTextSelected: { color: '#fff' },
 
-  modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 },
-  modalButton: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, marginLeft: 8 },
-  modalButtonCancel: { backgroundColor: '#9e9e9e' },
-  modalButtonConfirm: { backgroundColor: '#1976d2' },
-  modalButtonText: { color: '#fff', fontWeight: '700' },
+  dayChipSelected: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+
+  dayChipText: {
+    fontSize: 12,
+    color: '#9ca3af',
+  },
+
+  dayChipTextSelected: {
+    color: '#fff',
+  },
+
+  /* MODAL BUTTONS */
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 12,
+  },
+
+  modalButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+
+  modalButtonCancel: {
+    backgroundColor: '#374151',
+  },
+
+  modalButtonConfirm: {
+    backgroundColor: '#2563eb',
+  },
+
+  modalButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
 });
 
 export default LibrariesScreen;
