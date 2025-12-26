@@ -335,12 +335,14 @@ const LibrariesScreen = () => {
               <TextInput
                 style={styles.modalInput}
                 placeholder="Name"
+                placeholderTextColor='#FFFFFF'
                 value={newName}
                 onChangeText={setNewName}
               />
               <TextInput
                 style={styles.modalInput}
                 placeholder="Address"
+                placeholderTextColor='#FFFFFF'
                 value={newAddress}
                 onChangeText={setNewAddress}
               />
@@ -440,12 +442,14 @@ const LibrariesScreen = () => {
               <TextInput
                 style={styles.modalInput}
                 placeholder="Name"
+                placeholderTextColor='#FFFFFF'
                 value={editName}
                 onChangeText={setEditName}
               />
               <TextInput
                 style={styles.modalInput}
                 placeholder="Address"
+                placeholderTextColor='#FFFFFF'
                 value={editAddress}
                 onChangeText={setEditAddress}
               />
