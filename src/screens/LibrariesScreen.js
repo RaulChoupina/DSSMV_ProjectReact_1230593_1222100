@@ -534,18 +534,18 @@ const LibrariesScreen = () => {
     </SafeAreaView>
   );
 };
-
 const styles = StyleSheet.create({
+  // ==========================================
+  // 1. ESTRUTURA GLOBAL E BASE
+  // ==========================================
   safe: {
     flex: 1,
-    backgroundColor: '#0b1220',
+    backgroundColor: '#0b1220', // Fundo principal Dark
   },
-
   container: {
     flex: 1,
     padding: 16,
   },
-
   title: {
     fontSize: 22,
     fontWeight: '700',
@@ -553,7 +553,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  /* SEARCH */
+  // ==========================================
+  // 2. CAMPO DE BUSCA (SEARCH)
+  // ==========================================
   searchInput: {
     backgroundColor: '#111827',
     borderRadius: 12,
@@ -565,23 +567,25 @@ const styles = StyleSheet.create({
     borderColor: '#1f2933',
   },
 
+  // ==========================================
+  // 3. LISTAGEM E ESTADOS (FLATLIST / ERRORS)
+  // ==========================================
   listContent: {
-    paddingBottom: 120,
+    paddingBottom: 120, // Espaço extra para não cobrir itens com o FAB/Barra
   },
-
   error: {
     color: '#f87171',
     marginTop: 8,
   },
 
-  /* BOTTOM BAR */
+  // ==========================================
+  // 4. NAVEGAÇÃO E BOTÃO FLUTUANTE (FAB)
+  // ==========================================
   bottomBar: {
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#1f2933',
   },
-
-  /* FAB */
   fab: {
     position: 'absolute',
     right: 18,
@@ -592,16 +596,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
-
-    zIndex: 999,
-    elevation: 12,
-
-    shadowColor: '#000',
+    zIndex: 999, // Garante que fica por cima de tudo
+    elevation: 12, // Sombra para Android
+    shadowColor: '#000', // Início sombras para iOS
     shadowOpacity: 0.35,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 6 },
   },
-
   fabIcon: {
     color: '#fff',
     fontSize: 32,
@@ -609,14 +610,15 @@ const styles = StyleSheet.create({
     lineHeight: 34,
   },
 
-  /* MODAL */
+  // ==========================================
+  // 5. MODAL - ESTRUTURA BASE
+  // ==========================================
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(2,6,23,0.85)',
+    backgroundColor: 'rgba(2,6,23,0.85)', // Overlay escuro semitransparente
     justifyContent: 'center',
     padding: 24,
   },
-
   modalContainer: {
     backgroundColor: '#0f172a',
     borderRadius: 16,
@@ -624,14 +626,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1f2933',
   },
-
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 12,
     color: '#e5e7eb',
   },
-
   modalInput: {
     backgroundColor: '#111827',
     borderWidth: 1,
@@ -643,24 +643,23 @@ const styles = StyleSheet.create({
     color: '#e5e7eb',
   },
 
-  /* TIME */
+  // ==========================================
+  // 6. MODAL - SELEÇÃO DE TEMPO (TIME)
+  // ==========================================
   timeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-
   timeCol: {
     flex: 1,
     marginRight: 8,
   },
-
   timeLabel: {
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 4,
     color: '#9ca3af',
   },
-
   timeButton: {
     borderRadius: 10,
     borderWidth: 1,
@@ -670,19 +669,19 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: '#111827',
   },
-
   timeButtonText: {
     fontSize: 16,
     color: '#e5e7eb',
   },
 
-  /* DAYS */
+  // ==========================================
+  // 7. MODAL - SELEÇÃO DE DIAS (CHIPS)
+  // ==========================================
   daysRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginBottom: 10,
   },
-
   dayChip: {
     borderWidth: 1,
     borderColor: '#1f2933',
@@ -693,43 +692,38 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     backgroundColor: '#0b1220',
   },
-
   dayChipSelected: {
     backgroundColor: '#2563eb',
     borderColor: '#2563eb',
   },
-
   dayChipText: {
     fontSize: 12,
     color: '#9ca3af',
   },
-
   dayChipTextSelected: {
     color: '#fff',
   },
 
-  /* MODAL BUTTONS */
+  // ==========================================
+  // 8. MODAL - BOTÕES DE AÇÃO
+  // ==========================================
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     marginTop: 12,
   },
-
   modalButton: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     marginLeft: 8,
   },
-
   modalButtonCancel: {
     backgroundColor: '#374151',
   },
-
   modalButtonConfirm: {
     backgroundColor: '#2563eb',
   },
-
   modalButtonText: {
     color: '#fff',
     fontWeight: '700',

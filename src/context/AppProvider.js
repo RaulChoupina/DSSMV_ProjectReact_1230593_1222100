@@ -7,6 +7,12 @@ const initialState = {
   libraries: [],
   librariesLoading: false,
   librariesError: null,
+  users: [],
+  usersLoading: false, // Adicione este
+  usersError: null,    // Adicione este
+  userHistory: [], // Garanta que começa como um array vazio
+  userHistoryLoading: false,
+  userHistoryError: null
 };
 
 class AppProvider extends Component {
