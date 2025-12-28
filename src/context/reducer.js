@@ -101,6 +101,23 @@ const reducer = (state, action) => {
         booksError: action.payload.error
       };
 
+
+    case 'FETCH_USERS_START':
+      return { ...state, usersLoading: true, usersError: null };
+    case 'FETCH_USERS_SUCCESS':
+      return { ...state, usersLoading: false, users: action.payload };
+    case 'FETCH_USERS_ERROR':
+      return { ...state, usersLoading: false, usersError: action.payload };
+
+    case 'FETCH_USER_HISTORY_START':
+      return { ...state, userHistoryLoading: true };
+    case 'FETCH_USER_HISTORY_SUCCESS':
+      return { ...state, userHistoryLoading: false, userHistory: action.payload };
+    case 'FETCH_USER_HISTORY_ERROR':
+      return { ...state, userHistoryLoading: false, userHistoryError: action.payload };
+
+
+
     default:
       return state;
   }

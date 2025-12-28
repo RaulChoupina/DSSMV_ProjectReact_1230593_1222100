@@ -13,6 +13,7 @@ import {
     Alert,
     KeyboardAvoidingView,
     Platform,
+    ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
@@ -32,29 +33,26 @@ export default function LibraryDetailScreen() {
 
     const [query, setQuery] = useState('');
 
-    // --- ADD MODAL ---
+    // --- MODALS ---
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [showActionsMenu, setShowActionsMenu] = useState(false);
+    const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+    const [showCheckinModal, setShowCheckinModal] = useState(false);
+    const [showDescriptionModal, setShowDescriptionModal] = useState(false); // NOVO MODAL
+
+    // --- ESTADOS DE DADOS ---
+    const [selectedItem, setSelectedItem] = useState(null);
     const [addIsbn, setAddIsbn] = useState('');
     const [addStock, setAddStock] = useState('1');
-    const [savingAdd, setSavingAdd] = useState(false);
-
-    // --- EDIT MODAL (só abre pelo botão EDITAR) ---
-    const [showEditModal, setShowEditModal] = useState(false);
-    const [selectedItem, setSelectedItem] = useState(null); // serve para edit + checkout/checkin
     const [editStock, setEditStock] = useState('');
-    const [savingEdit, setSavingEdit] = useState(false);
-
-    // --- ACTIONS MENU (top-right) ---
-    const [showActionsMenu, setShowActionsMenu] = useState(false);
-
-    // --- CHECKOUT MODAL ---
-    const [showCheckoutModal, setShowCheckoutModal] = useState(false);
     const [checkoutUsername, setCheckoutUsername] = useState('');
-    const [savingCheckout, setSavingCheckout] = useState(false);
-
-    // --- CHECKIN MODAL ---
-    const [showCheckinModal, setShowCheckinModal] = useState(false);
     const [checkinUsername, setCheckinUsername] = useState('');
+
+    // --- LOADING STATES ---
+    const [savingAdd, setSavingAdd] = useState(false);
+    const [savingEdit, setSavingEdit] = useState(false);
+    const [savingCheckout, setSavingCheckout] = useState(false);
     const [savingCheckin, setSavingCheckin] = useState(false);
 
     // --- TYPEAHEAD ---
@@ -67,805 +65,446 @@ export default function LibraryDetailScreen() {
         if (libraryId != null) fetchLibraryBooks(dispatch, libraryId);
     }, [dispatch, libraryId]);
 
-    // ---- helpers ----
     const getIsbnFromItem = (item) => item?.book?.isbn ?? item?.isbn ?? null;
-    const getBookId = (item) => getIsbnFromItem(item); // bookId = ISBN (como confirmaste)
+    const getBookId = (item) => getIsbnFromItem(item);
 
     const closeAllOverlays = () => {
         setShowActionsMenu(false);
         setShowTa(false);
     };
 
-    // typeahead debounce
+    // Typeahead Logic
     useEffect(() => {
         const q = (query || '').trim();
-
         if (q.length < 3) {
             setTaItems([]);
             setShowTa(false);
             setTaLoading(false);
-            setTaError(null);
             return;
         }
 
         const t = setTimeout(() => {
             setTaLoading(true);
-            setTaError(null);
-
             const path = `/v1/search/typeahead?query=${encodeURIComponent(q)}`;
-            const request = { method: 'GET', headers: { Accept: 'application/json' } };
-
-            makeHTTPRequest(
-              path,
-              request,
-              (data) => {
-                  const titles = Array.isArray(data?.titles) ? data.titles : [];
-                  const authors = Array.isArray(data?.authors) ? data.authors : [];
-                  const subjects = Array.isArray(data?.subjects) ? data.subjects : [];
-
-                  const unique = Array.from(
-                    new Set(
-                      [...titles, ...authors, ...subjects]
-                        .filter(Boolean)
-                        .map((s) => String(s).trim())
-                        .filter(Boolean)
-                    )
-                  ).slice(0, 10);
-
-                  setTaItems(unique);
-                  setShowTa(true);
-                  setTaLoading(false);
-              },
-              (errMsg) => {
-                  setTaError(errMsg);
-                  setTaItems([]);
-                  setShowTa(false);
-                  setTaLoading(false);
-              }
-            );
+            makeHTTPRequest(path, { method: 'GET' }, (data) => {
+                const results = [...(data?.titles || []), ...(data?.authors || [])];
+                setTaItems([...new Set(results)].slice(0, 10));
+                setShowTa(true);
+                setTaLoading(false);
+            }, () => setTaLoading(false));
         }, 350);
-
         return () => clearTimeout(t);
     }, [query]);
 
     const filteredBooks = useMemo(() => {
         const q = (query || '').trim().toLowerCase();
         if (!q) return libraryBooks || [];
-
         return (libraryBooks || []).filter((item) => {
             const b = item?.book ?? item;
-            const title = (b?.title ?? b?.name ?? '').toLowerCase();
-            const isbn = (b?.isbn ?? item?.isbn ?? '').toLowerCase();
-
-            const authorsStr = Array.isArray(b?.authors)
-              ? b.authors
-                .map((a) => a?.name)
-                .filter(Boolean)
-                .join(', ')
-                .toLowerCase()
-              : '';
-
-            return title.includes(q) || authorsStr.includes(q) || isbn.includes(q);
+            const title = (b?.title ?? '').toLowerCase();
+            const isbn = (b?.isbn ?? '').toLowerCase();
+            return title.includes(q) || isbn.includes(q);
         });
     }, [libraryBooks, query]);
 
-    // -------- COVER URL --------
-    const extractImageId = (cover) => {
+    const buildCoverUrl = (cover) => {
         const rel = cover?.smallUrl || cover?.mediumUrl || cover?.largeUrl;
         if (!rel) return null;
-        const clean = rel.split('?')[0];
-        const parts = clean.split('/');
-        return parts[parts.length - 1] || null;
+        const imageId = rel.split('/').pop().split('?')[0];
+        return `${BASE_URL.replace(/\/$/, '')}/v1/assets/cover/${imageId}`;
     };
 
-    const buildCoverUrl = (cover) => {
-        const imageId = extractImageId(cover);
-        if (!imageId) return null;
-        const base = BASE_URL.replace(/\/$/, '');
-        return `${base}/v1/assets/cover/${imageId}`;
-    };
-
-    // ---------- API (centralizado) ----------
     const apiJson = (path, method, payload) =>
-      new Promise((resolve, reject) => {
-          const headers = payload
-            ? { Accept: 'application/json', 'Content-Type': 'application/json' }
-            : { Accept: 'application/json' };
-
-          const request = {
-              method,
-              headers,
-              body: payload ? JSON.stringify(payload) : undefined,
-          };
-
-          // debug útil (se quiseres)
-          // console.log('[API]', method, path, payload ?? '(no-body)');
-
-          makeHTTPRequest(
-            path,
-            request,
-            (data) => resolve(data),
-            (errMsg) => reject(new Error(errMsg))
-          );
-      });
-
-    const apiCreateBook = (isbn, payload) =>
-      apiJson(`/v1/library/${libraryId}/book/${encodeURIComponent(isbn)}`, 'POST', payload);
-
-    const apiUpdateBook = (isbn, payload) =>
-      apiJson(`/v1/library/${libraryId}/book/${encodeURIComponent(isbn)}`, 'PUT', payload);
-
-    // ✅ Swagger: checkout/checkin usam userId na query e NÃO levam body
-    const apiCheckout = (bookId, userId) =>
-      apiJson(
-        `/v1/library/${libraryId}/book/${encodeURIComponent(bookId)}/checkout?userId=${encodeURIComponent(
-          userId
-        )}`,
-        'POST'
-      );
-
-    const apiCheckin = (bookId, userId) =>
-      apiJson(
-        `/v1/library/${libraryId}/book/${encodeURIComponent(bookId)}/checkin?userId=${encodeURIComponent(
-          userId
-        )}`,
-        'POST'
-      );
-
-    // ---------- ADD ----------
-    const resetAdd = () => {
-        setAddIsbn('');
-        setAddStock('1');
-    };
-
-    const handleAdd = async () => {
-        const isbn = (addIsbn || '').trim();
-        if (!isbn) return Alert.alert('Erro', 'ISBN é obrigatório.');
-
-        const stock = Number.parseInt(addStock, 10);
-        if (Number.isNaN(stock) || stock < 0) return Alert.alert('Erro', 'Stock inválido.');
-
-        const available = stock;
-
-        setSavingAdd(true);
-        try {
-            await apiCreateBook(isbn, { stock, available });
-            setShowAddModal(false);
-            resetAdd();
-            fetchLibraryBooks(dispatch, libraryId);
-            Alert.alert('Sucesso', 'Livro adicionado com sucesso ✅');
-        } catch (e) {
-            Alert.alert('Erro', safe(e?.message || 'Falhou ao adicionar livro.'));
-        } finally {
-            setSavingAdd(false);
-        }
-    };
-
-    // ---------- EDIT ----------
-    const openEditModal = (item) => {
-        setSelectedItem(item);
-        setEditStock(String(item?.stock ?? 0));
-        setShowEditModal(true);
-    };
-
-    const handleSaveEdit = async () => {
-        if (!selectedItem) return;
-
-        const isbn = getIsbnFromItem(selectedItem);
-        if (!isbn) return Alert.alert('Erro', 'Não consegui detetar o ISBN deste livro.');
-
-        const stock = Number.parseInt(editStock, 10);
-        if (Number.isNaN(stock) || stock < 0) return Alert.alert('Erro', 'Stock inválido.');
-
-        setSavingEdit(true);
-        try {
-            await apiUpdateBook(isbn, { stock });
-
-            setShowEditModal(false);
-            setSelectedItem(null);
-            fetchLibraryBooks(dispatch, libraryId);
-
-            Alert.alert('Sucesso', 'Stock atualizado ✅');
-        } catch (e) {
-            Alert.alert('Erro', safe(e?.message || 'Falhou ao atualizar livro.'));
-        } finally {
-            setSavingEdit(false);
-        }
-    };
-
-    // ---------- CHECKOUT / CHECKIN ----------
-    const openCheckoutModal = () => {
-        if (!selectedItem) return Alert.alert('Erro', 'Seleciona primeiro um livro da lista.');
-        setCheckoutUsername('');
-        setShowCheckoutModal(true);
-    };
-
-    const openCheckinModal = () => {
-        if (!selectedItem) return Alert.alert('Erro', 'Seleciona primeiro um livro da lista.');
-        setCheckinUsername('');
-        setShowCheckinModal(true);
-    };
+        new Promise((resolve, reject) => {
+            makeHTTPRequest(path, {
+                method,
+                headers: payload ? { 'Content-Type': 'application/json' } : {},
+                body: payload ? JSON.stringify(payload) : undefined
+            }, resolve, (err) => reject(new Error(err)));
+        });
 
     const handleCheckoutConfirm = async () => {
-        const userId = (checkoutUsername || '').trim();
-        if (!userId) return Alert.alert('Erro', 'UserId é obrigatório.');
-        if (!selectedItem) return Alert.alert('Erro', 'Seleciona primeiro um livro.');
-
-        const bookId = getBookId(selectedItem);
-        if (!bookId) return Alert.alert('Erro', 'ISBN (bookId) não encontrado.');
-
+        if (!checkoutUsername.trim()) return Alert.alert('Erro', 'UserId é obrigatório.');
         setSavingCheckout(true);
         try {
-            await apiCheckout(bookId, userId);
-
+            await apiJson(`/v1/library/${libraryId}/book/${encodeURIComponent(getBookId(selectedItem))}/checkout?userId=${encodeURIComponent(checkoutUsername)}`, 'POST');
             setShowCheckoutModal(false);
-            setCheckoutUsername('');
             fetchLibraryBooks(dispatch, libraryId);
-
-            Alert.alert('Sucesso', 'Check-out efetuado ✅');
-        } catch (e) {
-            Alert.alert('Erro', safe(e?.message || 'Falhou ao fazer check-out.'));
-        } finally {
-            setSavingCheckout(false);
-        }
+            Alert.alert('Sucesso', 'Check-out efetuado ');
+        } catch (e) { Alert.alert('Erro', e.message); }
+        finally { setSavingCheckout(false); }
     };
 
     const handleCheckinConfirm = async () => {
-        const userId = (checkinUsername || '').trim();
-        if (!userId) return Alert.alert('Erro', 'UserId é obrigatório.');
-        if (!selectedItem) return Alert.alert('Erro', 'Seleciona primeiro um livro.');
-
-        const bookId = getBookId(selectedItem);
-        if (!bookId) return Alert.alert('Erro', 'ISBN (bookId) não encontrado.');
-
+        if (!checkinUsername.trim()) return Alert.alert('Erro', 'UserId é obrigatório.');
         setSavingCheckin(true);
         try {
-            await apiCheckin(bookId, userId);
-
+            await apiJson(`/v1/library/${libraryId}/book/${encodeURIComponent(getBookId(selectedItem))}/checkin?userId=${encodeURIComponent(checkinUsername)}`, 'POST');
             setShowCheckinModal(false);
-            setCheckinUsername('');
             fetchLibraryBooks(dispatch, libraryId);
-
-            Alert.alert('Sucesso', 'Check-in efetuado ✅');
-        } catch (e) {
-            Alert.alert('Erro', safe(e?.message || 'Falhou ao fazer check-in.'));
-        } finally {
-            setSavingCheckin(false);
-        }
+            Alert.alert('Sucesso', 'Check-in efetuado ');
+        } catch (e) { Alert.alert('Erro', e.message); }
+        finally { setSavingCheckin(false); }
     };
 
-    // ---------- RENDER ----------
     const renderBookItem = ({ item }) => {
         const b = item?.book;
         const coverUrl = buildCoverUrl(b?.cover);
-
-        const title = b?.title ?? b?.name ?? 'Untitled';
-        const author =
-          Array.isArray(b?.authors) && b.authors.length > 0
-            ? b.authors.map((a) => a?.name).filter(Boolean).join(', ')
-            : 'N/A';
-        const isbn = b?.isbn ?? item?.isbn;
-
-        const isSelected = (selectedItem?.isbn ?? selectedItem?.book?.isbn) === (item?.isbn ?? item?.book?.isbn);
+        const title = b?.title ?? 'Sem Título';
+        const isbn = getIsbnFromItem(item);
 
         return (
-          <TouchableOpacity activeOpacity={0.9} onPress={() => setSelectedItem(item)}>
-              <View style={[styles.bookCard, isSelected && styles.bookCardSelected]}>
-                  <View style={styles.coverWrap}>
-                      {coverUrl ? (
-                        <Image
-                          source={{ uri: coverUrl }}
-                          style={styles.cover}
-                          resizeMode="cover"
-                          onError={(e) => console.log('IMG ERROR:', e.nativeEvent)}
-                        />
-                      ) : (
-                        <View style={styles.coverFallback}>
-                            <Text style={styles.coverFallbackText}>No{'\n'}Cover</Text>
-                        </View>
-                      )}
-                  </View>
+            <View style={styles.bookCard}>
+                {/* O CLIQUE AQUI ABRE A DESCRIÇÃO */}
+                <TouchableOpacity
+                    style={styles.bookClickArea}
+                    onPress={() => {
+                        setSelectedItem(item);
+                        setShowDescriptionModal(true);
+                    }}
+                >
+                    <View style={styles.coverWrap}>
+                        {coverUrl ? <Image source={{ uri: coverUrl }} style={styles.cover} /> :
+                            <View style={styles.coverFallback}><Text style={styles.coverFallbackText}>No Cover</Text></View>}
+                    </View>
 
-                  <View style={styles.bookInfo}>
-                      <Text style={styles.bookTitle} numberOfLines={2}>
-                          {safe(title)}
-                      </Text>
+                    <View style={styles.bookInfo}>
+                        <Text style={styles.bookTitle} numberOfLines={2}>{safe(title)}</Text>
+                        <Text style={styles.bookMeta}>Stock: {safe(item?.stock)}</Text>
+                        <Text style={styles.bookMeta}>ISBN: {safe(isbn)}</Text>
+                    </View>
+                </TouchableOpacity>
 
-                      <Text style={styles.bookMeta} numberOfLines={2}>
-                          Author: {safe(author)}
-                      </Text>
+                <View style={styles.itemActionsColumn}>
+                    <TouchableOpacity
+                        style={styles.itemMenuBtn}
+                        onPress={() => {
+                            setSelectedItem(item);
+                            setShowActionsMenu(true);
+                        }}
+                    >
+                        <Text style={styles.itemMenuBtnText}>⋮</Text>
+                    </TouchableOpacity>
 
-                      {!!isbn && (
-                        <Text style={styles.bookMeta} numberOfLines={1}>
-                            ISBN: {safe(isbn)}
-                        </Text>
-                      )}
-
-                      <Text style={styles.bookMeta}>Stock: {safe(item?.stock)}</Text>
-                  </View>
-
-                  <View style={styles.actions}>
-                      <TouchableOpacity
-                        onPress={() => openEditModal(item)}
-                        activeOpacity={0.85}
-                        style={[styles.btn, styles.btnEdit]}
-                      >
-                          <Text style={styles.btnTextEdit}>EDITAR</Text>
-                      </TouchableOpacity>
-                  </View>
-              </View>
-          </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.btnMiniEdit}
+                        onPress={() => {
+                            setSelectedItem(item);
+                            setEditStock(String(item.stock));
+                            setShowEditModal(true);
+                        }}
+                    >
+                        <Text style={styles.btnTextEdit}>EDITAR</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
         );
     };
 
-    const selectedIsbn = getIsbnFromItem(selectedItem);
-
     return (
-      <SafeAreaView style={styles.safe}>
-          <View style={styles.container}>
-              {/* Header + botão top-right */}
-              <View style={styles.headerRow}>
-                  <View style={{ flex: 1 }}>
-                      <Text style={styles.title} numberOfLines={1}>
-                          {safe(libraryName)}
-                      </Text>
-                      <Text style={styles.subtitle}>Books</Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.topRightBtn}
-                    activeOpacity={0.85}
-                    onPress={() => {
-                        closeAllOverlays();
-                        setShowActionsMenu(true);
-                    }}
-                  >
-                      <Text style={styles.topRightBtnText}>⋮</Text>
-                  </TouchableOpacity>
-              </View>
-
-              {/* SEARCH + TYPEAHEAD */}
-              <View style={styles.searchWrap}>
-                  <TextInput
-                    style={styles.search}
-                    placeholder="Search by title, author, ISBN..."
-                    value={query}
-                    onChangeText={(t) => {
-                        setQuery(t);
-                        if ((t || '').trim().length >= 3) setShowTa(true);
-                    }}
-                    onFocus={() => {
-                        if ((query || '').trim().length >= 3 && taItems.length > 0) setShowTa(true);
-                    }}
-                    onBlur={() => setTimeout(() => setShowTa(false), 120)}
-                    autoCorrect={false}
-                    autoCapitalize="none"
-                  />
-
-                  {taLoading && <Text style={styles.taHint}>A procurar sugestões…</Text>}
-                  {!!taError && !taLoading && <Text style={styles.taError}>Typeahead: {taError}</Text>}
-
-                  {showTa && taItems.length > 0 && (
-                    <View style={styles.taDropdown}>
-                        {taItems.map((sug, idx) => (
-                          <TouchableOpacity
-                            key={`${sug}-${idx}`}
-                            style={styles.taItem}
-                            activeOpacity={0.85}
-                            onPress={() => {
-                                setQuery(sug);
-                                setShowTa(false);
-                            }}
-                          >
-                              <Text style={styles.taText} numberOfLines={1}>
-                                  {sug}
-                              </Text>
-                          </TouchableOpacity>
-                        ))}
+        <SafeAreaView style={styles.safe}>
+            <View style={styles.container}>
+                <View style={styles.headerRow}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.title}>{safe(libraryName)}</Text>
+                        <Text style={styles.subtitle}>Gestão de Inventário</Text>
                     </View>
-                  )}
-              </View>
+                </View>
 
-              {libraryBooksLoading && <ActivityIndicator size="large" />}
-
-              {!!libraryBooksError && !libraryBooksLoading && <Text style={styles.error}>Error: {libraryBooksError}</Text>}
-
-              {!libraryBooksLoading && !libraryBooksError && (
-                <FlatList
-                  data={filteredBooks}
-                  keyExtractor={(item, idx) => String(item.id ?? item.isbn ?? idx)}
-                  renderItem={renderBookItem}
-                  contentContainerStyle={{ paddingBottom: 90 }}
-                  ListEmptyComponent={<Text style={styles.empty}>No books found.</Text>}
-                  keyboardShouldPersistTaps="handled"
+                <TextInput
+                    style={styles.search}
+                    placeholder="Pesquisar..."
+                    value={query}
+                    onChangeText={setQuery}
                 />
-              )}
 
-              {/* FAB ADD */}
-              <TouchableOpacity activeOpacity={0.88} style={styles.fab} onPress={() => setShowAddModal(true)}>
-                  <Text style={styles.fabIcon}>＋</Text>
-              </TouchableOpacity>
+                {libraryBooksLoading ? <ActivityIndicator size="large" color="#fff" /> : (
+                    <FlatList
+                        data={filteredBooks}
+                        keyExtractor={(item, idx) => String(item.isbn || idx)}
+                        renderItem={renderBookItem}
+                        contentContainerStyle={{ paddingBottom: 100 }}
+                    />
+                )}
 
-              {/* MENU TOP-RIGHT: CHECKOUT / CHECKIN */}
-              <Modal
-                visible={showActionsMenu}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setShowActionsMenu(false)}
-              >
-                  <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setShowActionsMenu(false)}>
-                      <View style={styles.menuCard}>
-                          <Text style={styles.menuTitle} numberOfLines={2}>
-                              {selectedIsbn ? `Ações (ISBN: ${selectedIsbn})` : 'Ações (seleciona um livro)'}
-                          </Text>
+                {/* MODAL DE DESCRIÇÃO COMPLETA */}
+                <Modal visible={showDescriptionModal} animationType="slide" transparent>
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalCard, { maxHeight: '80%' }]}>
+                            <ScrollView>
+                                <View style={styles.descHeader}>
+                                    <Image
+                                        source={{ uri: buildCoverUrl(selectedItem?.book?.cover) }}
+                                        style={styles.descCover}
+                                        resizeMode="contain"
+                                    />
+                                    <View style={{flex: 1, marginLeft: 15}}>
+                                        <Text style={styles.modalTitle}>{selectedItem?.book?.title}</Text>
+                                        <Text style={styles.bookMeta}>ISBN: {getIsbnFromItem(selectedItem)}</Text>
+                                    </View>
+                                </View>
 
-                          <TouchableOpacity
-                            style={[styles.menuItem, !selectedItem && styles.menuItemDisabled]}
-                            activeOpacity={0.85}
-                            disabled={!selectedItem}
-                            onPress={() => {
-                                setShowActionsMenu(false);
-                                openCheckoutModal();
-                            }}
-                          >
-                              <Text style={[styles.menuItemText, !selectedItem && styles.menuItemTextDisabled]}>CHECK-OUT</Text>
-                          </TouchableOpacity>
+                                <Text style={styles.descLabel}>Descrição:</Text>
+                                <Text style={styles.descText}>
+                                    {selectedItem?.book?.description || 'Nenhuma descrição disponível para este livro.'}
+                                </Text>
+                            </ScrollView>
 
-                          <TouchableOpacity
-                            style={[styles.menuItem, !selectedItem && styles.menuItemDisabled]}
-                            activeOpacity={0.85}
-                            disabled={!selectedItem}
-                            onPress={() => {
-                                setShowActionsMenu(false);
-                                openCheckinModal();
-                            }}
-                          >
-                              <Text style={[styles.menuItemText, !selectedItem && styles.menuItemTextDisabled]}>CHECK-IN</Text>
-                          </TouchableOpacity>
-                      </View>
-                  </TouchableOpacity>
-              </Modal>
+                            <TouchableOpacity
+                                style={[styles.btnOk, { marginTop: 20 }]}
+                                onPress={() => setShowDescriptionModal(false)}
+                            >
+                                <Text style={styles.btnTextOk}>Fechar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
 
-              {/* MODAL ADD */}
-              <Modal visible={showAddModal} animationType="slide" transparent onRequestClose={() => setShowAddModal(false)}>
-                  <View style={styles.modalOverlay}>
-                      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalWrap}>
-                          <View style={styles.modalCard}>
-                              <Text style={styles.modalTitle}>Add Book</Text>
+                {/* MENU DE AÇÕES (ABRE PARA O LIVRO CLICADO) */}
+                <Modal visible={showActionsMenu} transparent animationType="fade">
+                    <TouchableOpacity style={styles.menuOverlay} onPress={() => setShowActionsMenu(false)}>
+                        <View style={styles.menuCard}>
+                            <Text style={styles.menuTitle}>{selectedItem?.book?.title || 'Opções'}</Text>
+                            <TouchableOpacity style={styles.menuItem} onPress={() => { setShowActionsMenu(false); setShowCheckoutModal(true); }}>
+                                <Text style={styles.menuItemText}> CHECK-OUT</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.menuItem} onPress={() => { setShowActionsMenu(false); setShowCheckinModal(true); }}>
+                                <Text style={styles.menuItemText}> CHECK-IN</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </TouchableOpacity>
+                </Modal>
 
-                              <TextInput
-                                style={styles.modalInput}
-                                placeholder="ISBN (ex: 978-...)"
-                                value={addIsbn}
-                                onChangeText={setAddIsbn}
-                                autoCapitalize="none"
-                              />
+                {/* MODAL CHECK-OUT */}
+                <Modal visible={showCheckoutModal} transparent animationType="slide">
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalCard}>
+                            <Text style={styles.modalTitle}>Check-out</Text>
+                            <TextInput style={styles.modalInput} placeholder="ID do Utilizador" value={checkoutUsername} onChangeText={setCheckoutUsername} />
+                            <View style={styles.modalBtns}>
+                                <TouchableOpacity onPress={() => setShowCheckoutModal(false)}><Text>Cancelar</Text></TouchableOpacity>
+                                <TouchableOpacity onPress={handleCheckoutConfirm} style={styles.btnOk}><Text style={{color:'#fff'}}>Confirmar</Text></TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
 
-                              <TextInput
-                                style={styles.modalInput}
-                                placeholder="Stock"
-                                value={addStock}
-                                onChangeText={setAddStock}
-                                keyboardType="numeric"
-                              />
-
-                              <View style={styles.modalBtns}>
-                                  <TouchableOpacity
-                                    style={[styles.btn, styles.btnCancel2]}
-                                    onPress={() => {
-                                        setShowAddModal(false);
-                                        resetAdd();
-                                    }}
-                                    disabled={savingAdd}
-                                  >
-                                      <Text style={styles.btnTextCancel}>Cancel</Text>
-                                  </TouchableOpacity>
-
-                                  <TouchableOpacity style={[styles.btn, styles.btnOk]} onPress={handleAdd} disabled={savingAdd}>
-                                      <Text style={styles.btnTextOk}>{savingAdd ? 'Adding...' : 'Add'}</Text>
-                                  </TouchableOpacity>
-                              </View>
-                          </View>
-                      </KeyboardAvoidingView>
-                  </View>
-              </Modal>
-
-              {/* MODAL EDIT */}
-              <Modal visible={showEditModal} animationType="slide" transparent onRequestClose={() => setShowEditModal(false)}>
-                  <View style={styles.modalOverlay}>
-                      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalWrap}>
-                          <View style={styles.modalCard}>
-                              <Text style={styles.modalTitle}>Edit Stock</Text>
-
-                              <Text style={styles.modalHint}>ISBN: {safe(selectedIsbn)}</Text>
-
-                              <TextInput
-                                style={styles.modalInput}
-                                placeholder="Stock"
-                                value={editStock}
-                                onChangeText={setEditStock}
-                                keyboardType="numeric"
-                              />
-
-                              <View style={styles.modalBtns}>
-                                  <TouchableOpacity
-                                    style={[styles.btn, styles.btnCancel2]}
-                                    onPress={() => {
-                                        setShowEditModal(false);
-                                        setSelectedItem(null);
-                                    }}
-                                    disabled={savingEdit}
-                                  >
-                                      <Text style={styles.btnTextCancel}>Cancel</Text>
-                                  </TouchableOpacity>
-
-                                  <TouchableOpacity style={[styles.btn, styles.btnOk]} onPress={handleSaveEdit} disabled={savingEdit}>
-                                      <Text style={styles.btnTextOk}>{savingEdit ? 'Saving...' : 'Save'}</Text>
-                                  </TouchableOpacity>
-                              </View>
-                          </View>
-                      </KeyboardAvoidingView>
-                  </View>
-              </Modal>
-
-              {/* MODAL CHECK-OUT */}
-              <Modal visible={showCheckoutModal} animationType="slide" transparent onRequestClose={() => setShowCheckoutModal(false)}>
-                  <View style={styles.modalOverlay}>
-                      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalWrap}>
-                          <View style={styles.modalCard}>
-                              <Text style={styles.modalTitle}>Check-out</Text>
-
-                              <Text style={styles.modalHint}>ISBN: {safe(selectedIsbn)}</Text>
-
-                              <TextInput
-                                style={styles.modalInput}
-                                placeholder="UserId"
-                                value={checkoutUsername}
-                                onChangeText={setCheckoutUsername}
-                                autoCapitalize="none"
-                              />
-
-                              <View style={styles.modalBtns}>
-                                  <TouchableOpacity
-                                    style={[styles.btn, styles.btnCancel2]}
-                                    onPress={() => {
-                                        setShowCheckoutModal(false);
-                                        setCheckoutUsername('');
-                                    }}
-                                    disabled={savingCheckout}
-                                  >
-                                      <Text style={styles.btnTextCancel}>Cancel</Text>
-                                  </TouchableOpacity>
-
-                                  <TouchableOpacity style={[styles.btn, styles.btnOk]} onPress={handleCheckoutConfirm} disabled={savingCheckout}>
-                                      <Text style={styles.btnTextOk}>{savingCheckout ? 'Saving...' : 'Confirm'}</Text>
-                                  </TouchableOpacity>
-                              </View>
-                          </View>
-                      </KeyboardAvoidingView>
-                  </View>
-              </Modal>
-
-              {/* MODAL CHECK-IN */}
-              <Modal visible={showCheckinModal} animationType="slide" transparent onRequestClose={() => setShowCheckinModal(false)}>
-                  <View style={styles.modalOverlay}>
-                      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalWrap}>
-                          <View style={styles.modalCard}>
-                              <Text style={styles.modalTitle}>Check-in</Text>
-
-                              <Text style={styles.modalHint}>ISBN: {safe(selectedIsbn)}</Text>
-
-                              <TextInput
-                                style={styles.modalInput}
-                                placeholder="UserId"
-                                value={checkinUsername}
-                                onChangeText={setCheckinUsername}
-                                autoCapitalize="none"
-                              />
-
-                              <View style={styles.modalBtns}>
-                                  <TouchableOpacity
-                                    style={[styles.btn, styles.btnCancel2]}
-                                    onPress={() => {
-                                        setShowCheckinModal(false);
-                                        setCheckinUsername('');
-                                    }}
-                                    disabled={savingCheckin}
-                                  >
-                                      <Text style={styles.btnTextCancel}>Cancel</Text>
-                                  </TouchableOpacity>
-
-                                  <TouchableOpacity style={[styles.btn, styles.btnOk]} onPress={handleCheckinConfirm} disabled={savingCheckin}>
-                                      <Text style={styles.btnTextOk}>{savingCheckin ? 'Saving...' : 'Confirm'}</Text>
-                                  </TouchableOpacity>
-                              </View>
-                          </View>
-                      </KeyboardAvoidingView>
-                  </View>
-              </Modal>
-          </View>
-      </SafeAreaView>
+                {/* MODAL CHECK-IN */}
+                <Modal visible={showCheckinModal} transparent animationType="slide">
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalCard}>
+                            <Text style={styles.modalTitle}>Check-in</Text>
+                            <TextInput style={styles.modalInput} placeholder="ID do Utilizador" value={checkinUsername} onChangeText={setCheckinUsername} />
+                            <View style={styles.modalBtns}>
+                                <TouchableOpacity onPress={() => setShowCheckinModal(false)}><Text>Cancelar</Text></TouchableOpacity>
+                                <TouchableOpacity onPress={handleCheckinConfirm} style={styles.btnOk}><Text style={{color:'#fff'}}>Confirmar</Text></TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
+            </View>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: '#0b1220' },
-    container: { flex: 1, padding: 16 },
-
-    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-
-    title: { fontSize: 22, fontWeight: '800', color: '#fff' },
-    subtitle: { marginTop: 4, marginBottom: 12, color: '#bbb' },
-
-    topRightBtn: {
-        width: 42,
-        height: 42,
-        borderRadius: 12,
-        backgroundColor: '#111827',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: '#1f2937',
-        marginLeft: 10,
+    // ==========================================
+    // 1. ESTRUTURA GLOBAL E TELAS
+    // ==========================================
+    safe: {
+        flex: 1,
+        backgroundColor: '#0b1220' // Fundo azul escuro profundo (Dark Theme)
     },
-    topRightBtnText: { color: '#fff', fontSize: 22, fontWeight: '900', marginTop: -2 },
-
-    // SEARCH + TYPEAHEAD
-    searchWrap: { position: 'relative', zIndex: 50 },
+    container: {
+        flex: 1,
+        padding: 16 // Margem interna padrão para não encostar nos bordos do ecrã
+    },
+    headerRow: {
+        flexDirection: 'row',
+        marginBottom: 15 // Alinha título e subtítulo horizontalmente
+    },
+    title: {
+        fontSize: 22,
+        fontWeight: '800',
+        color: '#fff' // Título principal em branco para contraste
+    },
+    subtitle: {
+        color: '#bbb' // Subtítulo em cinza claro para hierarquia visual
+    },
     search: {
         backgroundColor: '#fff',
         borderRadius: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        marginBottom: 12,
+        padding: 12,
+        marginBottom: 15 // Caixa de pesquisa arredondada
     },
-    taHint: { color: '#cbd5e1', marginTop: -6, marginBottom: 8, fontSize: 12 },
-    taError: { color: '#ff6b6b', marginTop: -6, marginBottom: 8, fontSize: 12 },
-    taDropdown: {
-        position: 'absolute',
-        top: 48,
-        left: 0,
-        right: 0,
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#e5e7eb',
-        overflow: 'hidden',
-        elevation: 12,
-        shadowColor: '#000',
-        shadowOpacity: 0.15,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 6 },
-    },
-    taItem: {
-        paddingHorizontal: 12,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f1f5f9',
-    },
-    taText: { color: '#111', fontWeight: '700' },
 
-    error: { color: '#ff6b6b' },
-    empty: { color: '#bbb', textAlign: 'center', marginTop: 20 },
-
+    // ==========================================
+    // 2. CARTÃO DO LIVRO (LISTA PRINCIPAL)
+    // ==========================================
     bookCard: {
         backgroundColor: '#fff',
         borderRadius: 16,
         padding: 12,
         marginBottom: 10,
-        flexDirection: 'row',
-        gap: 12,
+        flexDirection: 'row', // Organiza Capa, Info e Ações lado a lado
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOpacity: 0.08,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 3,
     },
-    bookCardSelected: { borderWidth: 2, borderColor: '#1976d2' },
-
+    bookClickArea: {
+        flexDirection: 'row',
+        flex: 1, // Ocupa todo o espaço restante para facilitar o toque na descrição
+        alignItems: 'center',
+    },
     coverWrap: {
-        width: 62,
-        height: 92,
-        borderRadius: 12,
-        overflow: 'hidden',
-        backgroundColor: '#f2f2f2',
+        width: 60,
+        height: 85,
+        borderRadius: 8,
+        overflow: 'hidden', // Garante que a imagem respeite o arredondamento
+        backgroundColor: '#eee'
     },
-    cover: { width: '100%', height: '100%' },
+    cover: {
+        width: '100%',
+        height: '100%'
+    },
+    bookInfo: {
+        flex: 1,
+        marginLeft: 12 // Espaçamento entre a capa e o texto informativo
+    },
+    bookTitle: {
+        fontSize: 15,
+        fontWeight: 'bold',
+        color: '#111'
+    },
+    bookMeta: {
+        color: '#666',
+        fontSize: 13,
+        marginTop: 2 // Texto secundário (ISBN/Stock) mais pequeno e suave
+    },
 
-    coverFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    coverFallbackText: { fontSize: 11, color: '#999', fontWeight: '700', textAlign: 'center' },
-
-    bookInfo: { flex: 1 },
-    bookTitle: { fontSize: 16, fontWeight: '800', color: '#111' },
-    bookMeta: { marginTop: 4, color: '#666' },
-
-    // actions + botão EDITAR
-    actions: { justifyContent: 'center', alignItems: 'flex-end' },
-    btn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12 },
-    btnEdit: { backgroundColor: '#163963FF', borderColor: '#1e293b', borderWidth: 1 },
-    btnTextEdit: { color: '#fff', fontWeight: '900', fontSize: 12 },
-
-    // FAB
-    fab: {
-        position: 'absolute',
-        right: 18,
-        bottom: 18,
-        width: 58,
-        height: 58,
-        borderRadius: 29,
-        backgroundColor: '#1976d2',
+    // ==========================================
+    // 3. AÇÕES RÁPIDAS NO ITEM (DIREITA)
+    // ==========================================
+    itemActionsColumn: {
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOpacity: 0.25,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 6 },
-        elevation: 8,
+        paddingLeft: 10 // Coluna isolada para os botões ⋮ e EDITAR
     },
-    fabIcon: { color: '#fff', fontSize: 32, fontWeight: '800', lineHeight: 34 },
+    itemMenuBtn: {
+        padding: 8 // Área de toque aumentada para o menu de três pontos
+    },
+    itemMenuBtnText: {
+        fontSize: 26,
+        color: '#163963',
+        fontWeight: 'bold'
+    },
+    btnMiniEdit: {
+        backgroundColor: '#163963',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 8 // Botão pequeno para não poluir o card
+    },
+    btnTextEdit: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: 'bold'
+    },
 
-    // MENU OVERLAY
+    // ==========================================
+    // 4. MODAL DE DESCRIÇÃO (DETALHES)
+    // ==========================================
+    descHeader: {
+        flexDirection: 'row',
+        marginBottom: 20 // Capa e Título lado a lado no topo do modal
+    },
+    descCover: {
+        width: 100,
+        height: 150,
+        borderRadius: 10 // Capa maior para visualização detalhada
+    },
+    descLabel: {
+        fontWeight: 'bold',
+        fontSize: 16,
+        color: '#111',
+        marginTop: 10
+    },
+    descText: {
+        fontSize: 14,
+        color: '#444',
+        lineHeight: 20, // Espaçamento entre linhas para facilitar a leitura
+        marginTop: 5
+    },
+
+    // ==========================================
+    // 5. MENU DROPDOWN (CHECK-IN/OUT)
+    // ==========================================
     menuOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.55)',
-        justifyContent: 'flex-start',
-        alignItems: 'flex-end',
-        paddingTop: 70,
-        paddingRight: 18,
+        backgroundColor: 'rgba(0,0,0,0.5)', // Escurece o fundo ao abrir opções
+        justifyContent: 'center',
+        alignItems: 'center'
     },
     menuCard: {
-        width: 220,
+        width: 250,
         backgroundColor: '#fff',
-        borderRadius: 14,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: '#e5e7eb',
+        borderRadius: 15,
+        overflow: 'hidden'
     },
     menuTitle: {
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        fontWeight: '900',
-        color: '#111',
+        padding: 15,
+        fontWeight: 'bold',
+        textAlign: 'center',
         borderBottomWidth: 1,
-        borderBottomColor: '#f1f5f9',
+        borderColor: '#eee'
     },
     menuItem: {
-        paddingHorizontal: 12,
-        paddingVertical: 12,
+        padding: 15,
+        alignItems: 'center',
         borderBottomWidth: 1,
-        borderBottomColor: '#f1f5f9',
+        borderColor: '#eee'
     },
-    menuItemText: { fontWeight: '900', color: '#111' },
-    menuItemDisabled: { opacity: 0.4 },
-    menuItemTextDisabled: { color: '#6b7280' },
+    menuItemText: {
+        fontWeight: 'bold',
+        color: '#111'
+    },
 
-    // MODALS
+    // ==========================================
+    // 6. MODAIS DE INPUT (FORMULÁRIOS)
+    // ==========================================
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.65)',
+        backgroundColor: 'rgba(0,0,0,0.7)', // Fundo mais escuro para foco total no formulário
         justifyContent: 'center',
-        padding: 18,
+        padding: 20
     },
-    modalWrap: { width: '100%' },
-    modalCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16 },
-    modalTitle: { fontSize: 18, fontWeight: '900', marginBottom: 10 },
-    modalHint: { color: '#666', marginBottom: 10 },
-
+    modalCard: {
+        backgroundColor: '#fff',
+        borderRadius: 15,
+        padding: 20
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 5
+    },
     modalInput: {
         borderWidth: 1,
         borderColor: '#ddd',
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        marginBottom: 10,
-        backgroundColor: '#fff',
+        borderRadius: 10,
+        padding: 10,
+        marginBottom: 15 // Estilo padrão para campos de texto
     },
-
-    modalBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 6 },
-
-    btnCancel2: { backgroundColor: '#eee' },
-    btnOk: { backgroundColor: '#1976d2' },
-    btnTextCancel: { fontWeight: '900', color: '#111' },
-    btnTextOk: { fontWeight: '900', color: '#fff' },
+    modalBtns: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+    },
+    btnOk: {
+        backgroundColor: '#1976d2',
+        padding: 10,
+        borderRadius: 8 // Botão de ação principal em azul vibrante
+    },
+    btnTextOk: {
+        color: '#fff',
+        fontWeight: 'bold',
+        textAlign: 'center'
+    },
 });
