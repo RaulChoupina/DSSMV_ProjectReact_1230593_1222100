@@ -39,7 +39,7 @@ export default function LibraryDetailScreen() {
     const [showActionsMenu, setShowActionsMenu] = useState(false);
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
     const [showCheckinModal, setShowCheckinModal] = useState(false);
-    const [showDescriptionModal, setShowDescriptionModal] = useState(false); // NOVO MODAL
+    const [showDescriptionModal, setShowDescriptionModal] = useState(false);
 
     // --- ESTADOS DE DADOS ---
     const [selectedItem, setSelectedItem] = useState(null);
@@ -123,6 +123,29 @@ export default function LibraryDetailScreen() {
             }, resolve, (err) => reject(new Error(err)));
         });
 
+    // --- HANDLERS ---
+
+    const handleAddBookConfirm = async () => {
+        if (!addIsbn.trim()) return Alert.alert('Erro', 'ISBN é obrigatório.');
+        setSavingAdd(true);
+        try {
+            await apiJson(
+                `/v1/library/${libraryId}/book/${encodeURIComponent(addIsbn.trim())}`,
+                'POST',
+                { stock: parseInt(addStock) || 0 }
+            );
+            setShowAddModal(false);
+            setAddIsbn('');
+            setAddStock('1');
+            fetchLibraryBooks(dispatch, libraryId);
+            Alert.alert('Sucesso', 'Livro adicionado ao inventário.');
+        } catch (e) {
+            Alert.alert('Erro', 'Não foi possível adicionar o livro. Verifique o ISBN.');
+        } finally {
+            setSavingAdd(false);
+        }
+    };
+
     const handleCheckoutConfirm = async () => {
         if (!checkoutUsername.trim()) return Alert.alert('Erro', 'UserId é obrigatório.');
         setSavingCheckout(true);
@@ -155,7 +178,6 @@ export default function LibraryDetailScreen() {
 
         return (
             <View style={styles.bookCard}>
-                {/* O CLIQUE AQUI ABRE A DESCRIÇÃO */}
                 <TouchableOpacity
                     style={styles.bookClickArea}
                     onPress={() => {
@@ -209,6 +231,12 @@ export default function LibraryDetailScreen() {
                         <Text style={styles.title}>{safe(libraryName)}</Text>
                         <Text style={styles.subtitle}>Gestão de Inventário</Text>
                     </View>
+                    <TouchableOpacity
+                        style={styles.btnAddMain}
+                        onPress={() => setShowAddModal(true)}
+                    >
+                        <Text style={styles.btnAddMainText}>+ ADICIONAR</Text>
+                    </TouchableOpacity>
                 </View>
 
                 <TextInput
@@ -226,6 +254,46 @@ export default function LibraryDetailScreen() {
                         contentContainerStyle={{ paddingBottom: 100 }}
                     />
                 )}
+
+                {/* MODAL ADICIONAR LIVRO */}
+                <Modal visible={showAddModal} transparent animationType="slide">
+                    <View style={styles.modalOverlay}>
+                        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                            <View style={styles.modalCard}>
+                                <Text style={styles.modalTitle}>Novo Livro no Stock</Text>
+                                <Text style={styles.bookMeta}>Introduza o ISBN e a quantidade inicial.</Text>
+
+                                <View style={{marginTop: 15}}>
+                                    <TextInput
+                                        style={styles.modalInput}
+                                        placeholder="ISBN do Livro"
+                                        value={addIsbn}
+                                        onChangeText={setAddIsbn}
+                                        keyboardType="numeric"
+                                    />
+                                    <TextInput
+                                        style={styles.modalInput}
+                                        placeholder="Stock Inicial"
+                                        value={addStock}
+                                        onChangeText={setAddStock}
+                                        keyboardType="numeric"
+                                    />
+                                </View>
+
+                                <View style={styles.modalBtns}>
+                                    <TouchableOpacity onPress={() => setShowAddModal(false)}><Text>Cancelar</Text></TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={handleAddBookConfirm}
+                                        style={[styles.btnOk, {backgroundColor: '#2e7d32'}]}
+                                        disabled={savingAdd}
+                                    >
+                                        {savingAdd ? <ActivityIndicator color="#fff" /> : <Text style={{color:'#fff', fontWeight:'bold'}}>ADICIONAR</Text>}
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </KeyboardAvoidingView>
+                    </View>
+                </Modal>
 
                 {/* MODAL DE DESCRIÇÃO COMPLETA */}
                 <Modal visible={showDescriptionModal} animationType="slide" transparent>
@@ -260,7 +328,7 @@ export default function LibraryDetailScreen() {
                     </View>
                 </Modal>
 
-                {/* MENU DE AÇÕES (ABRE PARA O LIVRO CLICADO) */}
+                {/* MENU DE AÇÕES */}
                 <Modal visible={showActionsMenu} transparent animationType="fade">
                     <TouchableOpacity style={styles.menuOverlay} onPress={() => setShowActionsMenu(false)}>
                         <View style={styles.menuCard}>
@@ -308,57 +376,62 @@ export default function LibraryDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-    // ==========================================
-    // 1. ESTRUTURA GLOBAL E TELAS
-    // ==========================================
     safe: {
         flex: 1,
-        backgroundColor: '#0b1220' // Fundo azul escuro profundo (Dark Theme)
+        backgroundColor: '#0b1220'
     },
     container: {
         flex: 1,
-        padding: 16 // Margem interna padrão para não encostar nos bordos do ecrã
+        padding: 16
     },
     headerRow: {
         flexDirection: 'row',
-        marginBottom: 15 // Alinha título e subtítulo horizontalmente
+        marginBottom: 15,
+        alignItems: 'center'
     },
     title: {
         fontSize: 22,
         fontWeight: '800',
-        color: '#fff' // Título principal em branco para contraste
+        color: '#fff'
     },
     subtitle: {
-        color: '#bbb' // Subtítulo em cinza claro para hierarquia visual
+        color: '#bbb'
+    },
+    btnAddMain: {
+        backgroundColor: '#1976d2',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8
+    },
+    btnAddMainText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 12
     },
     search: {
         backgroundColor: '#fff',
         borderRadius: 12,
         padding: 12,
-        marginBottom: 15 // Caixa de pesquisa arredondada
+        marginBottom: 15
     },
-
-    // ==========================================
-    // 2. CARTÃO DO LIVRO (LISTA PRINCIPAL)
-    // ==========================================
     bookCard: {
         backgroundColor: '#fff',
         borderRadius: 16,
         padding: 12,
         marginBottom: 10,
-        flexDirection: 'row', // Organiza Capa, Info e Ações lado a lado
+        flexDirection: 'row',
         alignItems: 'center',
     },
     bookClickArea: {
         flexDirection: 'row',
-        flex: 1, // Ocupa todo o espaço restante para facilitar o toque na descrição
+        flex: 1,
         alignItems: 'center',
     },
     coverWrap: {
         width: 60,
         height: 85,
         borderRadius: 8,
-        overflow: 'hidden', // Garante que a imagem respeite o arredondamento
+        overflow: 'hidden',
         backgroundColor: '#eee'
     },
     cover: {
@@ -367,7 +440,7 @@ const styles = StyleSheet.create({
     },
     bookInfo: {
         flex: 1,
-        marginLeft: 12 // Espaçamento entre a capa e o texto informativo
+        marginLeft: 12
     },
     bookTitle: {
         fontSize: 15,
@@ -377,19 +450,15 @@ const styles = StyleSheet.create({
     bookMeta: {
         color: '#666',
         fontSize: 13,
-        marginTop: 2 // Texto secundário (ISBN/Stock) mais pequeno e suave
+        marginTop: 2
     },
-
-    // ==========================================
-    // 3. AÇÕES RÁPIDAS NO ITEM (DIREITA)
-    // ==========================================
     itemActionsColumn: {
         alignItems: 'center',
         justifyContent: 'center',
-        paddingLeft: 10 // Coluna isolada para os botões ⋮ e EDITAR
+        paddingLeft: 10
     },
     itemMenuBtn: {
-        padding: 8 // Área de toque aumentada para o menu de três pontos
+        padding: 8
     },
     itemMenuBtnText: {
         fontSize: 26,
@@ -400,25 +469,21 @@ const styles = StyleSheet.create({
         backgroundColor: '#163963',
         paddingHorizontal: 10,
         paddingVertical: 6,
-        borderRadius: 8 // Botão pequeno para não poluir o card
+        borderRadius: 8
     },
     btnTextEdit: {
         color: '#fff',
         fontSize: 10,
         fontWeight: 'bold'
     },
-
-    // ==========================================
-    // 4. MODAL DE DESCRIÇÃO (DETALHES)
-    // ==========================================
     descHeader: {
         flexDirection: 'row',
-        marginBottom: 20 // Capa e Título lado a lado no topo do modal
+        marginBottom: 20
     },
     descCover: {
         width: 100,
         height: 150,
-        borderRadius: 10 // Capa maior para visualização detalhada
+        borderRadius: 10
     },
     descLabel: {
         fontWeight: 'bold',
@@ -429,16 +494,12 @@ const styles = StyleSheet.create({
     descText: {
         fontSize: 14,
         color: '#444',
-        lineHeight: 20, // Espaçamento entre linhas para facilitar a leitura
+        lineHeight: 20,
         marginTop: 5
     },
-
-    // ==========================================
-    // 5. MENU DROPDOWN (CHECK-IN/OUT)
-    // ==========================================
     menuOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)', // Escurece o fundo ao abrir opções
+        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center'
     },
@@ -465,13 +526,9 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#111'
     },
-
-    // ==========================================
-    // 6. MODAIS DE INPUT (FORMULÁRIOS)
-    // ==========================================
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.7)', // Fundo mais escuro para foco total no formulário
+        backgroundColor: 'rgba(0,0,0,0.7)',
         justifyContent: 'center',
         padding: 20
     },
@@ -490,7 +547,7 @@ const styles = StyleSheet.create({
         borderColor: '#ddd',
         borderRadius: 10,
         padding: 10,
-        marginBottom: 15 // Estilo padrão para campos de texto
+        marginBottom: 15
     },
     modalBtns: {
         flexDirection: 'row',
@@ -500,7 +557,7 @@ const styles = StyleSheet.create({
     btnOk: {
         backgroundColor: '#1976d2',
         padding: 10,
-        borderRadius: 8 // Botão de ação principal em azul vibrante
+        borderRadius: 8
     },
     btnTextOk: {
         color: '#fff',

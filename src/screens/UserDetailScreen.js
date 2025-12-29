@@ -64,7 +64,7 @@ export default function UserDetailScreen() {
                     </Text>
                     <Text style={styles.dateInfo}>Requisitado: {item.checkoutDate}</Text>
                     <Text style={[styles.dateInfo, isOverdue && styles.textOverdue]}>
-                        Entrega: {item.dueDate} {isOverdue ? '⚠️ (ATRASADO)' : ''}
+                        Entrega: {item.dueDate} {isOverdue ? '⚠ (ATRASADO)' : ''}
                     </Text>
                 </View>
 

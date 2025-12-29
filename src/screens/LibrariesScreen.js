@@ -127,6 +127,9 @@ const LibrariesScreen = () => {
           onPress: async () => {
             try {
               await removeLibrary(dispatch, lib.id);
+              Alert.alert("Sucesso", "A biblioteca foi eliminada com sucesso", [
+                { text: "OK", onPress: () => navigation.goBack() }
+              ]);
             } catch (e) {
               Alert.alert('Erro', 'Falhou ao apagar a biblioteca.');
             }
