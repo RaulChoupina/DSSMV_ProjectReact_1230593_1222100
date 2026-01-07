@@ -4,15 +4,34 @@ import { Provider } from './AppContext';
 import reducer from './reducer';
 
 const initialState = {
+  // LIBRARIES
   libraries: [],
   librariesLoading: false,
   librariesError: null,
+
+  // USERS (mantém se ainda usas)
   users: [],
-  usersLoading: false, // Adicione este
-  usersError: null,    // Adicione este
-  userHistory: [], // Garanta que começa como um array vazio
-  userHistoryLoading: false,
-  userHistoryError: null
+  usersLoading: false,
+  usersError: null,
+
+  // LIVROS DA BIBLIOTECA (o reducer usa estes nomes)
+  libraryBooks: [],
+  libraryBooksLoading: false,
+  libraryBooksError: null,
+
+  // CHECKED-OUT (o reducer usa checkedOutLoading/checkedOutError)
+  checkedOutBooks: [],
+  checkedOutLoading: false,
+  checkedOutError: null,
+
+  // HISTÓRICO (o reducer usa historyLoading/historyError e checkoutHistory)
+  checkoutHistory: [],
+  historyLoading: false,
+  historyError: null,
+
+  // ADD/UPDATE STOCK (o reducer usa booksLoading/booksError)
+  booksLoading: false,
+  booksError: null,
 };
 
 class AppProvider extends Component {
@@ -21,17 +40,11 @@ class AppProvider extends Component {
     this.state = initialState;
   }
 
-  dispatch = (action) =>
-    this.setState((state) => reducer(state, action));
+  dispatch = (action) => this.setState((state) => reducer(state, action));
 
   render() {
     return (
-      <Provider
-        value={{
-          state: this.state,
-          dispatch: this.dispatch,
-        }}
-      >
+      <Provider value={{ state: this.state, dispatch: this.dispatch }}>
         {this.props.children}
       </Provider>
     );

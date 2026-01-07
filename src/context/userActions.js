@@ -30,3 +30,37 @@ export const fetchCheckoutHistory = (dispatch, userId) => {
         (error) => dispatch({ type: 'FETCH_HISTORY_ERROR', payload: error })
     );
 };
+// 3) Estender checkout por ID (UUID)
+export const extendCheckout = (dispatch, checkoutId) => {
+  dispatch({ type: 'EXTEND_CHECKOUT_START', payload: { checkoutId } });
+
+  return new Promise((resolve, reject) => {
+    console.log('EXTEND checkoutId =', checkoutId);
+
+    makeHTTPRequest(
+      `/v1/checkout/${encodeURIComponent(checkoutId)}/extend`,
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+      },
+      (data) => {
+        dispatch({
+          type: 'EXTEND_CHECKOUT_SUCCESS',
+          payload: { checkoutId, data },
+        });
+        resolve(data);
+      },
+      (error) => {
+        dispatch({
+          type: 'EXTEND_CHECKOUT_ERROR',
+          payload: { checkoutId, error },
+        });
+        reject(error);
+      }
+    );
+  });
+};
+

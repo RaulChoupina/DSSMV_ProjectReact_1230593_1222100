@@ -16,16 +16,17 @@ import {
     ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 
 import AppContext from '../context/AppContext';
-import { fetchLibraryBooks } from '../context/bookActions';
+import { fetchLibraryBooks, updateLibraryBook } from '../context/bookActions'; // ✅ usa a action já existente
 import { BASE_URL, makeHTTPRequest } from '../service/service';
 
 const safe = (s) => (s && String(s).trim() ? String(s) : 'N/A');
 
 export default function LibraryDetailScreen() {
     const route = useRoute();
+    const navigation = useNavigation();
     const { libraryId, libraryName } = route.params || {};
 
     const { state, dispatch } = useContext(AppContext);
@@ -86,12 +87,17 @@ export default function LibraryDetailScreen() {
         const t = setTimeout(() => {
             setTaLoading(true);
             const path = `/v1/search/typeahead?query=${encodeURIComponent(q)}`;
-            makeHTTPRequest(path, { method: 'GET' }, (data) => {
-                const results = [...(data?.titles || []), ...(data?.authors || [])];
-                setTaItems([...new Set(results)].slice(0, 10));
-                setShowTa(true);
-                setTaLoading(false);
-            }, () => setTaLoading(false));
+            makeHTTPRequest(
+              path,
+              { method: 'GET' },
+              (data) => {
+                  const results = [...(data?.titles || []), ...(data?.authors || [])];
+                  setTaItems([...new Set(results)].slice(0, 10));
+                  setShowTa(true);
+                  setTaLoading(false);
+              },
+              () => setTaLoading(false)
+            );
         }, 350);
         return () => clearTimeout(t);
     }, [query]);
@@ -115,13 +121,18 @@ export default function LibraryDetailScreen() {
     };
 
     const apiJson = (path, method, payload) =>
-        new Promise((resolve, reject) => {
-            makeHTTPRequest(path, {
+      new Promise((resolve, reject) => {
+          makeHTTPRequest(
+            path,
+            {
                 method,
                 headers: payload ? { 'Content-Type': 'application/json' } : {},
-                body: payload ? JSON.stringify(payload) : undefined
-            }, resolve, (err) => reject(new Error(err)));
-        });
+                body: payload ? JSON.stringify(payload) : undefined,
+            },
+            resolve,
+            (err) => reject(new Error(err))
+          );
+      });
 
     // --- HANDLERS ---
 
@@ -130,9 +141,9 @@ export default function LibraryDetailScreen() {
         setSavingAdd(true);
         try {
             await apiJson(
-                `/v1/library/${libraryId}/book/${encodeURIComponent(addIsbn.trim())}`,
-                'POST',
-                { stock: parseInt(addStock) || 0 }
+              `/v1/library/${libraryId}/book/${encodeURIComponent(addIsbn.trim())}`,
+              'POST',
+              { stock: parseInt(addStock) || 0 }
             );
             setShowAddModal(false);
             setAddIsbn('');
@@ -146,28 +157,75 @@ export default function LibraryDetailScreen() {
         }
     };
 
+    // ✅ EDITAR STOCK (usa a action Flux já existente: PUT /v1/library/{libraryId}/book/{isbn})
+    const handleEditBookConfirm = () => {
+        if (!selectedItem) return Alert.alert('Erro', 'Nenhum livro selecionado.');
+
+        const isbn = getBookId(selectedItem);
+        if (!isbn) return Alert.alert('Erro', 'ISBN inválido.');
+
+        const stockVal = parseInt((editStock || '').trim(), 10);
+        if (Number.isNaN(stockVal) || stockVal < 0) {
+            return Alert.alert('Erro', 'Stock inválido.');
+        }
+
+        setSavingEdit(true);
+
+        updateLibraryBook(
+          dispatch,
+          libraryId,
+          isbn,
+          { stock: stockVal },
+          () => {
+              setSavingEdit(false);
+              setShowEditModal(false);
+              Alert.alert('Sucesso', 'Stock atualizado.');
+          },
+          (errMsg) => {
+              setSavingEdit(false);
+              Alert.alert('Erro', errMsg || 'Não foi possível atualizar o stock.');
+          }
+        );
+    };
+
     const handleCheckoutConfirm = async () => {
         if (!checkoutUsername.trim()) return Alert.alert('Erro', 'UserId é obrigatório.');
         setSavingCheckout(true);
         try {
-            await apiJson(`/v1/library/${libraryId}/book/${encodeURIComponent(getBookId(selectedItem))}/checkout?userId=${encodeURIComponent(checkoutUsername)}`, 'POST');
+            await apiJson(
+              `/v1/library/${libraryId}/book/${encodeURIComponent(
+                getBookId(selectedItem)
+              )}/checkout?userId=${encodeURIComponent(checkoutUsername)}`,
+              'POST'
+            );
             setShowCheckoutModal(false);
             fetchLibraryBooks(dispatch, libraryId);
             Alert.alert('Sucesso', 'Check-out efetuado ');
-        } catch (e) { Alert.alert('Erro', e.message); }
-        finally { setSavingCheckout(false); }
+        } catch (e) {
+            Alert.alert('Erro', e.message);
+        } finally {
+            setSavingCheckout(false);
+        }
     };
 
     const handleCheckinConfirm = async () => {
         if (!checkinUsername.trim()) return Alert.alert('Erro', 'UserId é obrigatório.');
         setSavingCheckin(true);
         try {
-            await apiJson(`/v1/library/${libraryId}/book/${encodeURIComponent(getBookId(selectedItem))}/checkin?userId=${encodeURIComponent(checkinUsername)}`, 'POST');
+            await apiJson(
+              `/v1/library/${libraryId}/book/${encodeURIComponent(
+                getBookId(selectedItem)
+              )}/checkin?userId=${encodeURIComponent(checkinUsername)}`,
+              'POST'
+            );
             setShowCheckinModal(false);
             fetchLibraryBooks(dispatch, libraryId);
             Alert.alert('Sucesso', 'Check-in efetuado ');
-        } catch (e) { Alert.alert('Erro', e.message); }
-        finally { setSavingCheckin(false); }
+        } catch (e) {
+            Alert.alert('Erro', e.message);
+        } finally {
+            setSavingCheckin(false);
+        }
     };
 
     const renderBookItem = ({ item }) => {
@@ -177,242 +235,331 @@ export default function LibraryDetailScreen() {
         const isbn = getIsbnFromItem(item);
 
         return (
-            <View style={styles.bookCard}>
-                <TouchableOpacity
-                    style={styles.bookClickArea}
+          <View style={styles.bookCard}>
+              <TouchableOpacity
+                style={styles.bookClickArea}
+                onPress={() => {
+                    setSelectedItem(item);
+                    setShowDescriptionModal(true);
+                }}
+              >
+                  <View style={styles.coverWrap}>
+                      {coverUrl ? (
+                        <Image source={{ uri: coverUrl }} style={styles.cover} />
+                      ) : (
+                        <View style={styles.coverFallback}>
+                            <Text style={styles.coverFallbackText}>No Cover</Text>
+                        </View>
+                      )}
+                  </View>
+
+                  <View style={styles.bookInfo}>
+                      <Text style={styles.bookTitle} numberOfLines={2}>
+                          {safe(title)}
+                      </Text>
+                      <Text style={styles.bookMeta}>Stock: {safe(item?.stock)}</Text>
+                      <Text style={styles.bookMeta}>ISBN: {safe(isbn)}</Text>
+                  </View>
+              </TouchableOpacity>
+
+              <View style={styles.itemActionsColumn}>
+                  <TouchableOpacity
+                    style={styles.itemMenuBtn}
                     onPress={() => {
                         setSelectedItem(item);
-                        setShowDescriptionModal(true);
+                        setShowActionsMenu(true);
                     }}
-                >
-                    <View style={styles.coverWrap}>
-                        {coverUrl ? <Image source={{ uri: coverUrl }} style={styles.cover} /> :
-                            <View style={styles.coverFallback}><Text style={styles.coverFallbackText}>No Cover</Text></View>}
-                    </View>
+                  >
+                      <Text style={styles.itemMenuBtnText}>⋮</Text>
+                  </TouchableOpacity>
 
-                    <View style={styles.bookInfo}>
-                        <Text style={styles.bookTitle} numberOfLines={2}>{safe(title)}</Text>
-                        <Text style={styles.bookMeta}>Stock: {safe(item?.stock)}</Text>
-                        <Text style={styles.bookMeta}>ISBN: {safe(isbn)}</Text>
-                    </View>
-                </TouchableOpacity>
-
-                <View style={styles.itemActionsColumn}>
-                    <TouchableOpacity
-                        style={styles.itemMenuBtn}
-                        onPress={() => {
-                            setSelectedItem(item);
-                            setShowActionsMenu(true);
-                        }}
-                    >
-                        <Text style={styles.itemMenuBtnText}>⋮</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.btnMiniEdit}
-                        onPress={() => {
-                            setSelectedItem(item);
-                            setEditStock(String(item.stock));
-                            setShowEditModal(true);
-                        }}
-                    >
-                        <Text style={styles.btnTextEdit}>EDITAR</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
+                  {/* ✅ EDITAR (AGORA ABRE O MODAL) */}
+                  <TouchableOpacity
+                    style={styles.btnMiniEdit}
+                    onPress={() => {
+                        setSelectedItem(item);
+                        setEditStock(String(item?.stock ?? '0'));
+                        setShowEditModal(true);
+                    }}
+                  >
+                      <Text style={styles.btnTextEdit}>EDITAR</Text>
+                  </TouchableOpacity>
+              </View>
+          </View>
         );
     };
 
     return (
-        <SafeAreaView style={styles.safe}>
-            <View style={styles.container}>
-                <View style={styles.headerRow}>
-                    <View style={{ flex: 1 }}>
-                        <Text style={styles.title}>{safe(libraryName)}</Text>
-                        <Text style={styles.subtitle}>Gestão de Inventário</Text>
-                    </View>
-                    <TouchableOpacity
-                        style={styles.btnAddMain}
-                        onPress={() => setShowAddModal(true)}
-                    >
-                        <Text style={styles.btnAddMainText}>+ ADICIONAR</Text>
-                    </TouchableOpacity>
-                </View>
+      <SafeAreaView style={styles.safe}>
+          <View style={styles.container}>
+              <View style={styles.headerRow}>
+                  <View style={{ flex: 1 }}>
+                      <Text style={styles.title}>{safe(libraryName)}</Text>
+                      <Text style={styles.subtitle}>Gestão de Inventário</Text>
+                  </View>
+                  <TouchableOpacity style={styles.btnAddMain} onPress={() => setShowAddModal(true)}>
+                      <Text style={styles.btnAddMainText}>+ ADICIONAR</Text>
+                  </TouchableOpacity>
+              </View>
 
-                <TextInput
-                    style={styles.search}
-                    placeholder="Pesquisar..."
-                    value={query}
-                    onChangeText={setQuery}
+              <TextInput
+                style={styles.search}
+                placeholder="Pesquisar..."
+                value={query}
+                onChangeText={setQuery}
+              />
+
+              {libraryBooksLoading ? (
+                <ActivityIndicator size="large" color="#fff" />
+              ) : (
+                <FlatList
+                  data={filteredBooks}
+                  keyExtractor={(item, idx) => String(item.isbn || idx)}
+                  renderItem={renderBookItem}
+                  contentContainerStyle={{ paddingBottom: 100 }}
                 />
+              )}
 
-                {libraryBooksLoading ? <ActivityIndicator size="large" color="#fff" /> : (
-                    <FlatList
-                        data={filteredBooks}
-                        keyExtractor={(item, idx) => String(item.isbn || idx)}
-                        renderItem={renderBookItem}
-                        contentContainerStyle={{ paddingBottom: 100 }}
-                    />
-                )}
+              {/* MODAL ADICIONAR LIVRO */}
+              <Modal visible={showAddModal} transparent animationType="slide">
+                  <View style={styles.modalOverlay}>
+                      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                          <View style={styles.modalCard}>
+                              <Text style={styles.modalTitle}>Novo Livro no Stock</Text>
+                              <Text style={styles.bookMeta}>Introduza o ISBN e a quantidade inicial.</Text>
 
-                {/* MODAL ADICIONAR LIVRO */}
-                <Modal visible={showAddModal} transparent animationType="slide">
-                    <View style={styles.modalOverlay}>
-                        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-                            <View style={styles.modalCard}>
-                                <Text style={styles.modalTitle}>Novo Livro no Stock</Text>
-                                <Text style={styles.bookMeta}>Introduza o ISBN e a quantidade inicial.</Text>
+                              <View style={{ marginTop: 15 }}>
+                                  <TextInput
+                                    style={styles.modalInput}
+                                    placeholder="ISBN do Livro"
+                                    value={addIsbn}
+                                    onChangeText={setAddIsbn}
+                                    keyboardType="numeric"
+                                  />
+                                  <TextInput
+                                    style={styles.modalInput}
+                                    placeholder="Stock Inicial"
+                                    value={addStock}
+                                    onChangeText={setAddStock}
+                                    keyboardType="numeric"
+                                  />
+                              </View>
 
-                                <View style={{marginTop: 15}}>
-                                    <TextInput
-                                        style={styles.modalInput}
-                                        placeholder="ISBN do Livro"
-                                        value={addIsbn}
-                                        onChangeText={setAddIsbn}
-                                        keyboardType="numeric"
-                                    />
-                                    <TextInput
-                                        style={styles.modalInput}
-                                        placeholder="Stock Inicial"
-                                        value={addStock}
-                                        onChangeText={setAddStock}
-                                        keyboardType="numeric"
-                                    />
-                                </View>
+                              <View style={styles.modalBtns}>
+                                  <TouchableOpacity onPress={() => setShowAddModal(false)}>
+                                      <Text>Cancelar</Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    onPress={handleAddBookConfirm}
+                                    style={[styles.btnOk, { backgroundColor: '#2e7d32' }]}
+                                    disabled={savingAdd}
+                                  >
+                                      {savingAdd ? (
+                                        <ActivityIndicator color="#fff" />
+                                      ) : (
+                                        <Text style={{ color: '#fff', fontWeight: 'bold' }}>ADICIONAR</Text>
+                                      )}
+                                  </TouchableOpacity>
+                              </View>
+                          </View>
+                      </KeyboardAvoidingView>
+                  </View>
+              </Modal>
 
-                                <View style={styles.modalBtns}>
-                                    <TouchableOpacity onPress={() => setShowAddModal(false)}><Text>Cancelar</Text></TouchableOpacity>
-                                    <TouchableOpacity
-                                        onPress={handleAddBookConfirm}
-                                        style={[styles.btnOk, {backgroundColor: '#2e7d32'}]}
-                                        disabled={savingAdd}
-                                    >
-                                        {savingAdd ? <ActivityIndicator color="#fff" /> : <Text style={{color:'#fff', fontWeight:'bold'}}>ADICIONAR</Text>}
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        </KeyboardAvoidingView>
-                    </View>
-                </Modal>
+              {/* ✅ MODAL EDITAR LIVRO (STOCK) */}
+              <Modal visible={showEditModal} transparent animationType="slide">
+                  <View style={styles.modalOverlay}>
+                      <View style={styles.modalCard}>
+                          <Text style={styles.modalTitle}>Editar Stock</Text>
+                          <Text style={styles.bookMeta}>{selectedItem?.book?.title || 'Livro selecionado'}</Text>
+                          <Text style={styles.bookMeta}>ISBN: {getIsbnFromItem(selectedItem)}</Text>
 
-                {/* MODAL DE DESCRIÇÃO COMPLETA */}
-                <Modal visible={showDescriptionModal} animationType="slide" transparent>
-                    <View style={styles.modalOverlay}>
-                        <View style={[styles.modalCard, { maxHeight: '80%' }]}>
-                            <ScrollView>
-                                <View style={styles.descHeader}>
-                                    <Image
-                                        source={{ uri: buildCoverUrl(selectedItem?.book?.cover) }}
-                                        style={styles.descCover}
-                                        resizeMode="contain"
-                                    />
-                                    <View style={{flex: 1, marginLeft: 15}}>
-                                        <Text style={styles.modalTitle}>{selectedItem?.book?.title}</Text>
-                                        <Text style={styles.bookMeta}>ISBN: {getIsbnFromItem(selectedItem)}</Text>
-                                    </View>
-                                </View>
+                          <TextInput
+                            style={styles.modalInput}
+                            placeholder="Novo stock"
+                            value={editStock}
+                            onChangeText={setEditStock}
+                            keyboardType="numeric"
+                          />
 
-                                <Text style={styles.descLabel}>Descrição:</Text>
-                                <Text style={styles.descText}>
-                                    {selectedItem?.book?.description || 'Nenhuma descrição disponível para este livro.'}
-                                </Text>
-                            </ScrollView>
+                          <View style={styles.modalBtns}>
+                              <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                                  <Text>Cancelar</Text>
+                              </TouchableOpacity>
 
-                            <TouchableOpacity
-                                style={[styles.btnOk, { marginTop: 20 }]}
-                                onPress={() => setShowDescriptionModal(false)}
-                            >
-                                <Text style={styles.btnTextOk}>Fechar</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </Modal>
+                              <TouchableOpacity
+                                onPress={handleEditBookConfirm}
+                                style={[styles.btnOk, { backgroundColor: '#163963' }]}
+                                disabled={savingEdit}
+                              >
+                                  {savingEdit ? (
+                                    <ActivityIndicator color="#fff" />
+                                  ) : (
+                                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>GUARDAR</Text>
+                                  )}
+                              </TouchableOpacity>
+                          </View>
+                      </View>
+                  </View>
+              </Modal>
 
-                {/* MENU DE AÇÕES */}
-                <Modal visible={showActionsMenu} transparent animationType="fade">
-                    <TouchableOpacity style={styles.menuOverlay} onPress={() => setShowActionsMenu(false)}>
-                        <View style={styles.menuCard}>
-                            <Text style={styles.menuTitle}>{selectedItem?.book?.title || 'Opções'}</Text>
-                            <TouchableOpacity style={styles.menuItem} onPress={() => { setShowActionsMenu(false); setShowCheckoutModal(true); }}>
-                                <Text style={styles.menuItemText}> CHECK-OUT</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.menuItem} onPress={() => { setShowActionsMenu(false); setShowCheckinModal(true); }}>
-                                <Text style={styles.menuItemText}> CHECK-IN</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </TouchableOpacity>
-                </Modal>
+              {/* MODAL DE DESCRIÇÃO COMPLETA */}
+              <Modal visible={showDescriptionModal} animationType="slide" transparent>
+                  <View style={styles.modalOverlay}>
+                      <View style={[styles.modalCard, { maxHeight: '80%' }]}>
+                          <ScrollView>
+                              <View style={styles.descHeader}>
+                                  <Image
+                                    source={{ uri: buildCoverUrl(selectedItem?.book?.cover) }}
+                                    style={styles.descCover}
+                                    resizeMode="contain"
+                                  />
+                                  <View style={{ flex: 1, marginLeft: 15 }}>
+                                      <Text style={styles.modalTitle}>{selectedItem?.book?.title}</Text>
+                                      <Text style={styles.bookMeta}>ISBN: {getIsbnFromItem(selectedItem)}</Text>
+                                  </View>
+                              </View>
 
-                {/* MODAL CHECK-OUT */}
-                <Modal visible={showCheckoutModal} transparent animationType="slide">
-                    <View style={styles.modalOverlay}>
-                        <View style={styles.modalCard}>
-                            <Text style={styles.modalTitle}>Check-out</Text>
-                            <TextInput style={styles.modalInput} placeholder="ID do Utilizador" value={checkoutUsername} onChangeText={setCheckoutUsername} />
-                            <View style={styles.modalBtns}>
-                                <TouchableOpacity onPress={() => setShowCheckoutModal(false)}><Text>Cancelar</Text></TouchableOpacity>
-                                <TouchableOpacity onPress={handleCheckoutConfirm} style={styles.btnOk}><Text style={{color:'#fff'}}>Confirmar</Text></TouchableOpacity>
-                            </View>
-                        </View>
-                    </View>
-                </Modal>
+                              <Text style={styles.descLabel}>Descrição:</Text>
+                              <Text style={styles.descText}>
+                                  {selectedItem?.book?.description ||
+                                    'Nenhuma descrição disponível para este livro.'}
+                              </Text>
+                          </ScrollView>
 
-                {/* MODAL CHECK-IN */}
-                <Modal visible={showCheckinModal} transparent animationType="slide">
-                    <View style={styles.modalOverlay}>
-                        <View style={styles.modalCard}>
-                            <Text style={styles.modalTitle}>Check-in</Text>
-                            <TextInput style={styles.modalInput} placeholder="ID do Utilizador" value={checkinUsername} onChangeText={setCheckinUsername} />
-                            <View style={styles.modalBtns}>
-                                <TouchableOpacity onPress={() => setShowCheckinModal(false)}><Text>Cancelar</Text></TouchableOpacity>
-                                <TouchableOpacity onPress={handleCheckinConfirm} style={styles.btnOk}><Text style={{color:'#fff'}}>Confirmar</Text></TouchableOpacity>
-                            </View>
-                        </View>
-                    </View>
-                </Modal>
-            </View>
-        </SafeAreaView>
+                          <TouchableOpacity
+                            style={[styles.btnOk, { marginTop: 20 }]}
+                            onPress={() => setShowDescriptionModal(false)}
+                          >
+                              <Text style={styles.btnTextOk}>Fechar</Text>
+                          </TouchableOpacity>
+                      </View>
+                  </View>
+              </Modal>
+
+              {/* MENU DE AÇÕES */}
+              <Modal visible={showActionsMenu} transparent animationType="fade">
+                  <TouchableOpacity style={styles.menuOverlay} onPress={() => setShowActionsMenu(false)}>
+                      <View style={styles.menuCard}>
+                          <Text style={styles.menuTitle}>{selectedItem?.book?.title || 'Opções'}</Text>
+                          <TouchableOpacity
+                            style={styles.menuItem}
+                            onPress={() => {
+                                setShowActionsMenu(false);
+                                setShowCheckoutModal(true);
+                            }}
+                          >
+                              <Text style={styles.menuItemText}> CHECK-OUT</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.menuItem}
+                            onPress={() => {
+                                setShowActionsMenu(false);
+                                setShowCheckinModal(true);
+                            }}
+                          >
+                              <Text style={styles.menuItemText}> CHECK-IN</Text>
+                          </TouchableOpacity>
+                      </View>
+                  </TouchableOpacity>
+              </Modal>
+
+              {/* MODAL CHECK-OUT */}
+              <Modal visible={showCheckoutModal} transparent animationType="slide">
+                  <View style={styles.modalOverlay}>
+                      <View style={styles.modalCard}>
+                          <Text style={styles.modalTitle}>Check-out</Text>
+                          <TextInput
+                            style={styles.modalInput}
+                            placeholder="ID do Utilizador"
+                            value={checkoutUsername}
+                            onChangeText={setCheckoutUsername}
+                          />
+                          <View style={styles.modalBtns}>
+                              <TouchableOpacity onPress={() => setShowCheckoutModal(false)}>
+                                  <Text>Cancelar</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity onPress={handleCheckoutConfirm} style={styles.btnOk}>
+                                  {savingCheckout ? (
+                                    <ActivityIndicator color="#fff" />
+                                  ) : (
+                                    <Text style={{ color: '#fff' }}>Confirmar</Text>
+                                  )}
+                              </TouchableOpacity>
+                          </View>
+                      </View>
+                  </View>
+              </Modal>
+
+              {/* MODAL CHECK-IN */}
+              <Modal visible={showCheckinModal} transparent animationType="slide">
+                  <View style={styles.modalOverlay}>
+                      <View style={styles.modalCard}>
+                          <Text style={styles.modalTitle}>Check-in</Text>
+                          <TextInput
+                            style={styles.modalInput}
+                            placeholder="ID do Utilizador"
+                            value={checkinUsername}
+                            onChangeText={setCheckinUsername}
+                          />
+                          <View style={styles.modalBtns}>
+                              <TouchableOpacity onPress={() => setShowCheckinModal(false)}>
+                                  <Text>Cancelar</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity onPress={handleCheckinConfirm} style={styles.btnOk}>
+                                  {savingCheckin ? (
+                                    <ActivityIndicator color="#fff" />
+                                  ) : (
+                                    <Text style={{ color: '#fff' }}>Confirmar</Text>
+                                  )}
+                              </TouchableOpacity>
+                          </View>
+                      </View>
+                  </View>
+              </Modal>
+          </View>
+      </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
     safe: {
         flex: 1,
-        backgroundColor: '#0b1220'
+        backgroundColor: '#0b1220',
     },
     container: {
         flex: 1,
-        padding: 16
+        padding: 16,
     },
     headerRow: {
         flexDirection: 'row',
         marginBottom: 15,
-        alignItems: 'center'
+        alignItems: 'center',
     },
     title: {
         fontSize: 22,
         fontWeight: '800',
-        color: '#fff'
+        color: '#fff',
     },
     subtitle: {
-        color: '#bbb'
+        color: '#bbb',
     },
     btnAddMain: {
         backgroundColor: '#1976d2',
         paddingHorizontal: 12,
         paddingVertical: 8,
-        borderRadius: 8
+        borderRadius: 8,
     },
     btnAddMainText: {
         color: '#fff',
         fontWeight: 'bold',
-        fontSize: 12
+        fontSize: 12,
     },
     search: {
         backgroundColor: '#fff',
         borderRadius: 12,
         padding: 12,
-        marginBottom: 15
+        marginBottom: 15,
     },
     bookCard: {
         backgroundColor: '#fff',
@@ -432,136 +579,147 @@ const styles = StyleSheet.create({
         height: 85,
         borderRadius: 8,
         overflow: 'hidden',
-        backgroundColor: '#eee'
+        backgroundColor: '#eee',
     },
     cover: {
         width: '100%',
-        height: '100%'
+        height: '100%',
+    },
+    coverFallback: {
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#eee',
+    },
+    coverFallbackText: {
+        color: '#666',
+        fontSize: 10,
     },
     bookInfo: {
         flex: 1,
-        marginLeft: 12
+        marginLeft: 12,
     },
     bookTitle: {
         fontSize: 15,
         fontWeight: 'bold',
-        color: '#111'
+        color: '#111',
     },
     bookMeta: {
         color: '#666',
         fontSize: 13,
-        marginTop: 2
+        marginTop: 2,
     },
     itemActionsColumn: {
         alignItems: 'center',
         justifyContent: 'center',
-        paddingLeft: 10
+        paddingLeft: 10,
     },
     itemMenuBtn: {
-        padding: 8
+        padding: 8,
     },
     itemMenuBtnText: {
         fontSize: 26,
         color: '#163963',
-        fontWeight: 'bold'
+        fontWeight: 'bold',
     },
     btnMiniEdit: {
         backgroundColor: '#163963',
         paddingHorizontal: 10,
         paddingVertical: 6,
-        borderRadius: 8
+        borderRadius: 8,
     },
     btnTextEdit: {
         color: '#fff',
         fontSize: 10,
-        fontWeight: 'bold'
+        fontWeight: 'bold',
     },
     descHeader: {
         flexDirection: 'row',
-        marginBottom: 20
+        marginBottom: 20,
     },
     descCover: {
         width: 100,
         height: 150,
-        borderRadius: 10
+        borderRadius: 10,
     },
     descLabel: {
         fontWeight: 'bold',
         fontSize: 16,
         color: '#111',
-        marginTop: 10
+        marginTop: 10,
     },
     descText: {
         fontSize: 14,
         color: '#444',
         lineHeight: 20,
-        marginTop: 5
+        marginTop: 5,
     },
     menuOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
-        alignItems: 'center'
+        alignItems: 'center',
     },
     menuCard: {
         width: 250,
         backgroundColor: '#fff',
         borderRadius: 15,
-        overflow: 'hidden'
+        overflow: 'hidden',
     },
     menuTitle: {
         padding: 15,
         fontWeight: 'bold',
         textAlign: 'center',
         borderBottomWidth: 1,
-        borderColor: '#eee'
+        borderColor: '#eee',
     },
     menuItem: {
         padding: 15,
         alignItems: 'center',
         borderBottomWidth: 1,
-        borderColor: '#eee'
+        borderColor: '#eee',
     },
     menuItemText: {
         fontWeight: 'bold',
-        color: '#111'
+        color: '#111',
     },
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.7)',
         justifyContent: 'center',
-        padding: 20
+        padding: 20,
     },
     modalCard: {
         backgroundColor: '#fff',
         borderRadius: 15,
-        padding: 20
+        padding: 20,
     },
     modalTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        marginBottom: 5
+        marginBottom: 5,
     },
     modalInput: {
         borderWidth: 1,
         borderColor: '#ddd',
         borderRadius: 10,
         padding: 10,
-        marginBottom: 15
+        marginBottom: 15,
     },
     modalBtns: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center'
+        alignItems: 'center',
     },
     btnOk: {
         backgroundColor: '#1976d2',
         padding: 10,
-        borderRadius: 8
+        borderRadius: 8,
     },
     btnTextOk: {
         color: '#fff',
         fontWeight: 'bold',
-        textAlign: 'center'
+        textAlign: 'center',
     },
 });

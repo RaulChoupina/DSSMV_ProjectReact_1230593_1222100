@@ -75,9 +75,56 @@ const reducer = (state, action) => {
     case UPDATE_LIBRARY_BOOK_FAILURE:
       return { ...state, booksLoading: false, booksError: action.payload.error || action.payload };
 
-    default:
-      return state;
+  // EXTEND CHECKOUT
+  case 'EXTEND_CHECKOUT_START':
+  return {
+    ...state,
+    extendLoading: true,
+    extendError: null,
+    extendingCheckoutId: action.payload?.checkoutId || null,
+  };
+
+case 'EXTEND_CHECKOUT_SUCCESS': {
+    const checkoutId = action.payload?.checkoutId;
+
+    // tenta aproveitar a resposta (se vier com dueDate nova),
+    // mas mesmo que não venha, marcamos como estendido e o refresh no UI trata do resto
+    const newDueDate = action.payload?.data?.dueDate;
+
+    const updated = (state.checkedOutBooks || []).map((c) => {
+      if (String(c?.id) !== String(checkoutId)) return c;
+
+      return {
+        ...c,
+        ...(newDueDate ? { dueDate: newDueDate } : {}),
+        _extendedLocal: true, // para mostrar "(data estendida)" na UI
+      };
+    });
+
+    return {
+      ...state,
+      extendLoading: false,
+      extendError: null,
+      extendingCheckoutId: null,
+      checkedOutBooks: updated,
+    };
   }
+
+case 'EXTEND_CHECKOUT_ERROR':
+  return {
+    ...state,
+    extendLoading: false,
+    extendError: action.payload?.error || action.payload,
+    extendingCheckoutId: null,
+  };
+
+default:
+  return state;
+}
+
+
+
+
 };
 
 export default reducer;

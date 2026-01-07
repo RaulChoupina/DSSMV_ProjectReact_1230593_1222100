@@ -10,6 +10,7 @@ import MainScreen from './src/screens/MainScreen';
 import LibrariesScreen from './src/screens/LibrariesScreen';
 import LibraryDetailScreen from './src/screens/LibraryDetailScreen';
 import UsersScreen from './src/screens/UsersScreen';
+import Top5Screen from './src/screens/Top5Screen';
 import UserDetailScreen from './src/screens/UserDetailScreen'; // Adicionado
 
 const Stack = createNativeStackNavigator();
@@ -21,7 +22,7 @@ function RootNavigator() {
             <Stack.Screen name="Libraries" component={LibrariesScreen} options={{ headerShown: false }} />
             <Stack.Screen name="LibraryDetail" component={LibraryDetailScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Users" component={UsersScreen} options={{ headerShown: false }} />
-            {/* Registro obrigatório para a navegação funcionar */}
+            <Stack.Screen name="Top5" component={Top5Screen} options={{ headerShown: false }} />
             <Stack.Screen name="UserDetail" component={UserDetailScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
     );
