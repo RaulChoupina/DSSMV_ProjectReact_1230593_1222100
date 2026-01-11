@@ -102,8 +102,7 @@ export default function UsersScreen() {
         }
     };
 
-
-    // ✅ SHAKE: abre Top5 usando o último userId pesquisado
+    // ✅ SHAKE: abre CheckInScreen usando o último userId pesquisado
     useFocusEffect(
       useCallback(() => {
           const sub = RNShake.addListener(() => {
@@ -118,12 +117,51 @@ export default function UsersScreen() {
                   return;
               }
 
-              navigation.navigate('Top5', { userId });
+              // 🔐 só permite abrir se houver livros em posse
+              if (!checkedOutBooks || checkedOutBooks.length === 0) {
+                  Alert.alert('Check-in', 'Este utilizador não tem livros pendentes para devolução.');
+                  return;
+              }
+
+              // ⚠️ assume que todos os empréstimos pendentes são da mesma biblioteca
+              // Se o teu objeto não tiver libraryId/libraryName, diz-me o formato e eu ajusto já.
+              navigation.navigate('CheckIn', {
+                  libraryId: checkedOutBooks[0]?.libraryId,
+                  libraryName: checkedOutBooks[0]?.libraryName || 'Biblioteca',
+                  userId,
+                  userName: userId, // se não tiveres nome no payload, o ID serve
+                  checkedOutBooks,
+              });
           });
 
           return () => sub.remove();
-      }, [navigation, lastUserId, searchId])
+      }, [navigation, lastUserId, searchId, checkedOutBooks])
     );
+
+    useFocusEffect(
+      useCallback(() => {
+          const userId = (lastUserId || (searchId || "").trim() || "").trim();
+          if (!userId) return;
+
+          let alive = true;
+
+          (async () => {
+              try {
+                  // se estas actions devolverem Promise, isto apanha erros
+                  await fetchCheckedOutBooks(dispatch, userId);
+                  await fetchCheckoutHistory(dispatch, userId);
+              } catch (e) {
+                  console.log("REFRESH AFTER CHECKIN ERROR:", e);
+                  // não mostres alert aqui para não chatear a UX
+              }
+          })();
+
+          return () => {
+              alive = false;
+          };
+      }, [dispatch, lastUserId, searchId]) // mantém como tinhas
+    );
+
 
     // Lógica de extração de imagem baseada no teu BookCard.js
     const buildCoverUrl = (cover) => {
