@@ -13,6 +13,12 @@ import {
   UPDATE_LIBRARY_BOOK_REQUEST,
   UPDATE_LIBRARY_BOOK_SUCCESS,
   UPDATE_LIBRARY_BOOK_FAILURE,
+  CHECKOUT_LIBRARY_BOOK_REQUEST,
+  CHECKOUT_LIBRARY_BOOK_SUCCESS,
+  CHECKOUT_LIBRARY_BOOK_FAILURE,
+  CHECKIN_LIBRARY_BOOK_REQUEST,
+  CHECKIN_LIBRARY_BOOK_SUCCESS,
+  CHECKIN_LIBRARY_BOOK_FAILURE,
 } from './ActionTypes';
 
 const reducer = (state, action) => {
@@ -75,6 +81,34 @@ const reducer = (state, action) => {
     case UPDATE_LIBRARY_BOOK_FAILURE:
       return { ...state, booksLoading: false, booksError: action.payload.error || action.payload };
 
+
+      // CHECKOUT / CHECKIN (Flux)
+    case CHECKOUT_LIBRARY_BOOK_REQUEST:
+      return { ...state, checkoutLoading: true, checkoutError: null };
+
+    case CHECKOUT_LIBRARY_BOOK_SUCCESS:
+      return { ...state, checkoutLoading: false };
+
+    case CHECKOUT_LIBRARY_BOOK_FAILURE:
+      return {
+        ...state,
+        checkoutLoading: false,
+        checkoutError: action.payload?.error || action.payload,
+      };
+
+    case CHECKIN_LIBRARY_BOOK_REQUEST:
+      return { ...state, checkinLoading: true, checkinError: null };
+
+    case CHECKIN_LIBRARY_BOOK_SUCCESS:
+      return { ...state, checkinLoading: false };
+
+    case CHECKIN_LIBRARY_BOOK_FAILURE:
+      return {
+        ...state,
+        checkinLoading: false,
+        checkinError: action.payload?.error || action.payload,
+      };
+
   // EXTEND CHECKOUT
   case 'EXTEND_CHECKOUT_START':
   return {
@@ -126,5 +160,7 @@ default:
 
 
 };
+
+
 
 export default reducer;

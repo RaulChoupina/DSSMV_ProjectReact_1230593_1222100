@@ -9,6 +9,12 @@ import {
   UPDATE_LIBRARY_BOOK_REQUEST,
   UPDATE_LIBRARY_BOOK_SUCCESS,
   UPDATE_LIBRARY_BOOK_FAILURE,
+  CHECKOUT_LIBRARY_BOOK_REQUEST,
+  CHECKOUT_LIBRARY_BOOK_SUCCESS,
+  CHECKOUT_LIBRARY_BOOK_FAILURE,
+  CHECKIN_LIBRARY_BOOK_REQUEST,
+  CHECKIN_LIBRARY_BOOK_SUCCESS,
+  CHECKIN_LIBRARY_BOOK_FAILURE,
 } from './ActionTypes';
 
 /* =========================
@@ -41,15 +47,26 @@ export function fetchLibraryBooks(dispatch, libraryId) {
 }
 
 /* =========================
-   ➕ ADD book (por ISBN)
+   ➕ ADD book (por ISBN) + stock
    ========================= */
-export function addLibraryBook(dispatch, libraryId, isbn, onSuccess, onFailure) {
+export function addLibraryBook(
+    dispatch,
+    libraryId,
+    isbn,
+    payload,        // ✅ { stock: number }
+    onSuccess,
+    onFailure
+) {
   dispatch({ type: ADD_LIBRARY_BOOK_REQUEST });
 
   const path = `/v1/library/${libraryId}/book/${encodeURIComponent(isbn)}`;
   const request = {
     method: 'POST',
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: payload ? JSON.stringify(payload) : undefined,
   };
 
   const success = () => {
@@ -68,7 +85,6 @@ export function addLibraryBook(dispatch, libraryId, isbn, onSuccess, onFailure) 
 
   makeHTTPRequest(path, request, success, failure);
 }
-
 /* =========================
    ✏️ UPDATE book (stock)
    ========================= */
@@ -101,6 +117,83 @@ export function updateLibraryBook(
   const failure = (errMsg) => {
     dispatch({
       type: UPDATE_LIBRARY_BOOK_FAILURE,
+      payload: { error: errMsg },
+    });
+    if (onFailure) onFailure(errMsg);
+  };
+
+  makeHTTPRequest(path, request, success, failure);
+}
+
+/* =========================
+   📤 CHECKOUT book (por ISBN + userId)
+   POST /v1/library/{libraryId}/book/{isbn}/checkout?userId=...
+   ========================= */
+export function checkoutLibraryBook(
+    dispatch,
+    libraryId,
+    isbn,
+    userId,
+    onSuccess,
+    onFailure
+) {
+  dispatch({ type: CHECKOUT_LIBRARY_BOOK_REQUEST });
+
+  const path = `/v1/library/${libraryId}/book/${encodeURIComponent(
+      isbn
+  )}/checkout?userId=${encodeURIComponent(userId)}`;
+
+  const request = {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+  };
+
+  const success = (data) => {
+    dispatch({ type: CHECKOUT_LIBRARY_BOOK_SUCCESS, payload: { data } });
+    fetchLibraryBooks(dispatch, libraryId);
+    if (onSuccess) onSuccess(data);
+  };
+
+  const failure = (errMsg) => {
+    dispatch({
+      type: CHECKOUT_LIBRARY_BOOK_FAILURE,
+      payload: { error: errMsg },
+    });
+    if (onFailure) onFailure(errMsg);
+  };
+
+  makeHTTPRequest(path, request, success, failure);
+}
+
+
+export function checkinLibraryBook(
+    dispatch,
+    libraryId,
+    isbn,
+    userId,
+    onSuccess,
+    onFailure
+) {
+  dispatch({ type: CHECKIN_LIBRARY_BOOK_REQUEST });
+
+  const path = `/v1/library/${libraryId}/book/${encodeURIComponent(
+      isbn
+  )}/checkin?userId=${encodeURIComponent(userId)}`;
+
+  const request = {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+  };
+
+  const success = (data) => {
+    dispatch({ type: CHECKIN_LIBRARY_BOOK_SUCCESS, payload: { data } });
+    fetchLibraryBooks(dispatch, libraryId);
+    if (onSuccess) onSuccess(data);
+  };
+
+  const failure = (errMsg) => {
+    dispatch({
+      type: CHECKIN_LIBRARY_BOOK_FAILURE,
       payload: { error: errMsg },
     });
     if (onFailure) onFailure(errMsg);

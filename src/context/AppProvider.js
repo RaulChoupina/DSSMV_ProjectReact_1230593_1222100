@@ -19,6 +19,11 @@ const initialState = {
   libraryBooksLoading: false,
   libraryBooksError: null,
 
+  checkoutLoading: false,
+  checkoutError: null,
+  checkinLoading: false,
+  checkinError: null,
+
   // CHECKED-OUT (o reducer usa checkedOutLoading/checkedOutError)
   checkedOutBooks: [],
   checkedOutLoading: false,

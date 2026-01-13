@@ -34,7 +34,7 @@ const MainScreen = ({ navigation }) => {
 
             {/* HEADER */}
             <View style={styles.header}>
-                <Text style={styles.title}>DSSMV</Text>
+                <Text style={styles.title}>Library In One Click</Text>
                 <Text style={styles.subtitle}>
                     Sistema de gestão de bibliotecas
                 </Text>
