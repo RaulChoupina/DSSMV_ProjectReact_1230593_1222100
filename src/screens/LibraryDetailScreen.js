@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 
 import AppContext from '../context/AppContext';
-import { fetchLibraryBooks, updateLibraryBook } from '../context/bookActions'; // ✅ usa a action já existente
+import { fetchLibraryBooks, updateLibraryBook, addLibraryBook ,checkinLibraryBook, checkoutLibraryBook} from '../context/bookActions';
 import { BASE_URL, makeHTTPRequest } from '../service/service';
 
 const safe = (s) => (s && String(s).trim() ? String(s) : 'N/A');
@@ -191,25 +191,34 @@ export default function LibraryDetailScreen() {
 
     // --- HANDLERS ---
 
-    const handleAddBookConfirm = async () => {
-        if (!addIsbn.trim()) return Alert.alert('Erro', 'ISBN é obrigatório.');
-        setSavingAdd(true);
-        try {
-            await apiJson(
-              `/v1/library/${libraryId}/book/${encodeURIComponent(addIsbn.trim())}`,
-              'POST',
-              { stock: parseInt(addStock) || 0 }
-            );
-            setShowAddModal(false);
-            setAddIsbn('');
-            setAddStock('1');
-            fetchLibraryBooks(dispatch, libraryId);
-            Alert.alert('Sucesso', 'Livro adicionado ao inventário.');
-        } catch (e) {
-            Alert.alert('Erro', 'Não foi possível adicionar o livro. Verifique o ISBN.');
-        } finally {
-            setSavingAdd(false);
+    const handleAddBookConfirm = () => {
+        const isbn = (addIsbn || '').trim();
+        if (!isbn) return Alert.alert('Erro', 'ISBN é obrigatório.');
+
+        const stockVal = parseInt((addStock || '').trim(), 10);
+        if (Number.isNaN(stockVal) || stockVal < 0) {
+            return Alert.alert('Erro', 'Stock inválido.');
         }
+
+        setSavingAdd(true);
+
+        addLibraryBook(
+            dispatch,
+            libraryId,
+            isbn,
+            { stock: stockVal },
+            () => {
+                setSavingAdd(false);
+                setShowAddModal(false);
+                setAddIsbn('');
+                setAddStock('1');
+                Alert.alert('Sucesso', 'Livro adicionado ao inventário.');
+            },
+            (errMsg) => {
+                setSavingAdd(false);
+                Alert.alert('Erro', errMsg || 'Não foi possível adicionar o livro.');
+            }
+        );
     };
 
     // ✅ EDITAR STOCK (usa a action Flux já existente: PUT /v1/library/{libraryId}/book/{isbn})
@@ -243,44 +252,58 @@ export default function LibraryDetailScreen() {
         );
     };
 
-    const handleCheckoutConfirm = async () => {
-        if (!checkoutUsername.trim()) return Alert.alert('Erro', 'UserId é obrigatório.');
+    const handleCheckoutConfirm = () => {
+        const userId = (checkoutUsername || '').trim();
+        if (!userId) return Alert.alert('Erro', 'UserId é obrigatório.');
+
+        const isbn = getBookId(selectedItem);
+        if (!isbn) return Alert.alert('Erro', 'ISBN inválido.');
+
         setSavingCheckout(true);
-        try {
-            await apiJson(
-              `/v1/library/${libraryId}/book/${encodeURIComponent(
-                getBookId(selectedItem)
-              )}/checkout?userId=${encodeURIComponent(checkoutUsername)}`,
-              'POST'
-            );
-            setShowCheckoutModal(false);
-            fetchLibraryBooks(dispatch, libraryId);
-            Alert.alert('Sucesso', 'Check-out efetuado ');
-        } catch (e) {
-            Alert.alert('Erro', e.message);
-        } finally {
-            setSavingCheckout(false);
-        }
+
+        checkoutLibraryBook(
+            dispatch,
+            libraryId,
+            isbn,
+            userId,
+            () => {
+                setSavingCheckout(false);
+                setShowCheckoutModal(false);
+                setCheckoutUsername('');
+                Alert.alert('Sucesso', 'Check-out efetuado.');
+            },
+            (errMsg) => {
+                setSavingCheckout(false);
+                Alert.alert('Erro', errMsg || 'Não foi possível fazer check-out.');
+            }
+        );
     };
 
-    const handleCheckinConfirm = async () => {
-        if (!checkinUsername.trim()) return Alert.alert('Erro', 'UserId é obrigatório.');
+    const handleCheckinConfirm = () => {
+        const userId = (checkinUsername || '').trim();
+        if (!userId) return Alert.alert('Erro', 'UserId é obrigatório.');
+
+        const isbn = getBookId(selectedItem);
+        if (!isbn) return Alert.alert('Erro', 'ISBN inválido.');
+
         setSavingCheckin(true);
-        try {
-            await apiJson(
-              `/v1/library/${libraryId}/book/${encodeURIComponent(
-                getBookId(selectedItem)
-              )}/checkin?userId=${encodeURIComponent(checkinUsername)}`,
-              'POST'
-            );
-            setShowCheckinModal(false);
-            fetchLibraryBooks(dispatch, libraryId);
-            Alert.alert('Sucesso', 'Check-in efetuado ');
-        } catch (e) {
-            Alert.alert('Erro', e.message);
-        } finally {
-            setSavingCheckin(false);
-        }
+
+        checkinLibraryBook(
+            dispatch,
+            libraryId,
+            isbn,
+            userId,
+            () => {
+                setSavingCheckin(false);
+                setShowCheckinModal(false);
+                setCheckinUsername('');
+                Alert.alert('Sucesso', 'Check-in efetuado.');
+            },
+            (errMsg) => {
+                setSavingCheckin(false);
+                Alert.alert('Erro', errMsg || 'Não foi possível fazer check-in.');
+            }
+        );
     };
 
     const renderBookItem = ({ item }) => {

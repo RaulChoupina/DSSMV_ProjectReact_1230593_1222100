@@ -17,7 +17,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRoute, useNavigation } from "@react-navigation/native";
 
 import AppContext from "../context/AppContext";
-import { BASE_URL, makeHTTPRequest } from "../service/service";
+import { BASE_URL } from "../service/service";
+import { checkinLibraryBook } from "../context/bookActions";
 import { fetchCheckedOutBooks, fetchCheckoutHistory } from "../context/userActions";
 
 const safe = (s) => (s && String(s).trim() ? String(s) : "N/A");
@@ -106,19 +107,6 @@ export default function CheckInScreen() {
     });
   }, [localBooks, fallbackBooks, query]);
 
-  const apiJson = (path, method, payload) =>
-    new Promise((resolve, reject) => {
-      makeHTTPRequest(
-        path,
-        {
-          method,
-          headers: payload ? { "Content-Type": "application/json" } : {},
-          body: payload ? JSON.stringify(payload) : undefined,
-        },
-        resolve,
-        (err) => reject(new Error(err))
-      );
-    });
 
   const refreshUserDataSafely = async () => {
     if (!userId) return;
@@ -149,20 +137,25 @@ export default function CheckInScreen() {
     try {
       setSubmittingId(String(bookId));
 
-      const path = `/v1/library/${encodeURIComponent(
-        normalizedLibraryId
-      )}/book/${encodeURIComponent(bookId)}/checkin?userId=${encodeURIComponent(
-        userId
-      )}`;
-
-      await apiJson(path, "POST");
+      await new Promise((resolve, reject) => {
+        checkinLibraryBook(
+            dispatch,
+            normalizedLibraryId,  // ✅ importante (já normalizado)
+            bookId,
+            userId,
+            () => resolve(),
+            (errMsg) => reject(new Error(errMsg))
+        );
+      });
 
       Alert.alert("Sucesso", `Check-in efetuado: ${safe(getBookTitle(book))}`);
 
+      // remove da lista local imediatamente (UX rápida)
       setLocalBooks((prev) =>
-        prev.filter((x) => String(getBookId(x)) !== String(bookId))
+          prev.filter((x) => String(getBookId(x)) !== String(bookId))
       );
 
+      // refresh do user (para UsersScreen ficar certo ao voltar)
       await refreshUserDataSafely();
     } catch (err) {
       console.log("CHECKIN ERROR:", err);
@@ -171,7 +164,6 @@ export default function CheckInScreen() {
       setSubmittingId(null);
     }
   };
-
   const confirmCheckIn = (book) => {
     Alert.alert(
       "Confirmar check-in",
