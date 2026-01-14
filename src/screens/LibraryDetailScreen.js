@@ -21,8 +21,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 
 import AppContext from '../context/AppContext';
-import { fetchLibraryBooks, updateLibraryBook, addLibraryBook ,checkinLibraryBook, checkoutLibraryBook} from '../context/bookActions';
-import { BASE_URL, makeHTTPRequest } from '../service/service';
+import {
+    fetchLibraryBooks,
+    updateLibraryBook,
+    addLibraryBook,
+    checkinLibraryBook,
+    checkoutLibraryBook,
+    fetchTypeahead,
+    clearTypeahead,
+} from '../context/bookActions';
+import { BASE_URL } from '../service/service';
 
 const safe = (s) => (s && String(s).trim() ? String(s) : 'N/A');
 
@@ -64,7 +72,14 @@ export default function LibraryDetailScreen() {
     const { libraryId, libraryName } = route.params || {};
 
     const { state, dispatch } = useContext(AppContext);
-    const { libraryBooks, libraryBooksLoading, libraryBooksError } = state;
+    const {
+        libraryBooks,
+        libraryBooksLoading,
+        libraryBooksError,
+        typeaheadLoading,
+        typeaheadError,
+        typeaheadItems,
+    } = state;
 
     const [query, setQuery] = useState('');
 
@@ -91,9 +106,6 @@ export default function LibraryDetailScreen() {
     const [savingCheckin, setSavingCheckin] = useState(false);
 
     // --- TYPEAHEAD ---
-    const [taLoading, setTaLoading] = useState(false);
-    const [taError, setTaError] = useState(null);
-    const [taItems, setTaItems] = useState([]);
     const [showTa, setShowTa] = useState(false);
 
     useEffect(() => {
@@ -106,49 +118,26 @@ export default function LibraryDetailScreen() {
     const closeAllOverlays = () => {
         setShowActionsMenu(false);
         setShowTa(false);
+        clearTypeahead(dispatch);
     };
 
-    // Typeahead Logic
+    // Typeahead Logic (Flux)
     useEffect(() => {
         const q = (query || '').trim();
+
         if (q.length < 3) {
-            setTaItems([]);
             setShowTa(false);
-            setTaLoading(false);
-            setTaError(null);
+            clearTypeahead(dispatch);
             return;
         }
 
         const t = setTimeout(() => {
-            setTaLoading(true);
-            setTaError(null);
-
-            const path = `/v1/search/typeahead?query=${encodeURIComponent(q)}`;
-            makeHTTPRequest(
-              path,
-              { method: 'GET' },
-              (data) => {
-                  const results = [
-                      ...(data?.titles || []),
-                      ...(data?.authors || []),
-                      ...(data?.subjects || []),
-                  ];
-                  const uniq = [...new Set(results.map((x) => String(x)))].slice(0, 10);
-                  setTaItems(uniq);
-                  setShowTa(true);
-                  setTaLoading(false);
-              },
-              (err) => {
-                  setTaError(err || 'Erro no typeahead');
-                  setTaLoading(false);
-                  setTaItems([]);
-                  setShowTa(false);
-              }
-            );
+            fetchTypeahead(dispatch, q);
+            setShowTa(true);
         }, 350);
 
         return () => clearTimeout(t);
-    }, [query]);
+    }, [query, dispatch]);
 
     const filteredBooks = useMemo(() => {
         const q = (query || '').trim().toLowerCase();
@@ -159,9 +148,7 @@ export default function LibraryDetailScreen() {
             const title = (b?.title ?? '').toLowerCase();
             const isbn = (b?.isbn ?? '').toLowerCase();
 
-            // ✅ autor em string para poder pesquisar sem dar [object Object]
             const authorStr = (formatAuthors(b) || '').toLowerCase();
-
             const subjects = Array.isArray(b?.subjects) ? b.subjects.join(' ').toLowerCase() : '';
 
             return title.includes(q) || isbn.includes(q) || authorStr.includes(q) || subjects.includes(q);
@@ -174,20 +161,6 @@ export default function LibraryDetailScreen() {
         const imageId = rel.split('/').pop().split('?')[0];
         return `${BASE_URL.replace(/\/$/, '')}/v1/assets/cover/${imageId}`;
     };
-
-    const apiJson = (path, method, payload) =>
-      new Promise((resolve, reject) => {
-          makeHTTPRequest(
-            path,
-            {
-                method,
-                headers: payload ? { 'Content-Type': 'application/json' } : {},
-                body: payload ? JSON.stringify(payload) : undefined,
-            },
-            resolve,
-            (err) => reject(new Error(err))
-          );
-      });
 
     // --- HANDLERS ---
 
@@ -203,25 +176,24 @@ export default function LibraryDetailScreen() {
         setSavingAdd(true);
 
         addLibraryBook(
-            dispatch,
-            libraryId,
-            isbn,
-            { stock: stockVal },
-            () => {
-                setSavingAdd(false);
-                setShowAddModal(false);
-                setAddIsbn('');
-                setAddStock('1');
-                Alert.alert('Sucesso', 'Livro adicionado ao inventário.');
-            },
-            (errMsg) => {
-                setSavingAdd(false);
-                Alert.alert('Erro', errMsg || 'Não foi possível adicionar o livro.');
-            }
+          dispatch,
+          libraryId,
+          isbn,
+          { stock: stockVal },
+          () => {
+              setSavingAdd(false);
+              setShowAddModal(false);
+              setAddIsbn('');
+              setAddStock('1');
+              Alert.alert('Sucesso', 'Livro adicionado ao inventário.');
+          },
+          (errMsg) => {
+              setSavingAdd(false);
+              Alert.alert('Erro', errMsg || 'Não foi possível adicionar o livro.');
+          }
         );
     };
 
-    // ✅ EDITAR STOCK (usa a action Flux já existente: PUT /v1/library/{libraryId}/book/{isbn})
     const handleEditBookConfirm = () => {
         if (!selectedItem) return Alert.alert('Erro', 'Nenhum livro selecionado.');
 
@@ -262,20 +234,20 @@ export default function LibraryDetailScreen() {
         setSavingCheckout(true);
 
         checkoutLibraryBook(
-            dispatch,
-            libraryId,
-            isbn,
-            userId,
-            () => {
-                setSavingCheckout(false);
-                setShowCheckoutModal(false);
-                setCheckoutUsername('');
-                Alert.alert('Sucesso', 'Check-out efetuado.');
-            },
-            (errMsg) => {
-                setSavingCheckout(false);
-                Alert.alert('Erro', errMsg || 'Não foi possível fazer check-out.');
-            }
+          dispatch,
+          libraryId,
+          isbn,
+          userId,
+          () => {
+              setSavingCheckout(false);
+              setShowCheckoutModal(false);
+              setCheckoutUsername('');
+              Alert.alert('Sucesso', 'Check-out efetuado.');
+          },
+          (errMsg) => {
+              setSavingCheckout(false);
+              Alert.alert('Erro', errMsg || 'Não foi possível fazer check-out.');
+          }
         );
     };
 
@@ -289,20 +261,20 @@ export default function LibraryDetailScreen() {
         setSavingCheckin(true);
 
         checkinLibraryBook(
-            dispatch,
-            libraryId,
-            isbn,
-            userId,
-            () => {
-                setSavingCheckin(false);
-                setShowCheckinModal(false);
-                setCheckinUsername('');
-                Alert.alert('Sucesso', 'Check-in efetuado.');
-            },
-            (errMsg) => {
-                setSavingCheckin(false);
-                Alert.alert('Erro', errMsg || 'Não foi possível fazer check-in.');
-            }
+          dispatch,
+          libraryId,
+          isbn,
+          userId,
+          () => {
+              setSavingCheckin(false);
+              setShowCheckinModal(false);
+              setCheckinUsername('');
+              Alert.alert('Sucesso', 'Check-in efetuado.');
+          },
+          (errMsg) => {
+              setSavingCheckin(false);
+              Alert.alert('Erro', errMsg || 'Não foi possível fazer check-in.');
+          }
         );
     };
 
@@ -311,8 +283,6 @@ export default function LibraryDetailScreen() {
         const coverUrl = buildCoverUrl(b?.cover);
         const title = b?.title ?? 'Sem Título';
         const isbn = getIsbnFromItem(item);
-
-        // ✅ autor formatado (nunca [object Object])
         const author = formatAuthors(b);
 
         return (
@@ -357,7 +327,6 @@ export default function LibraryDetailScreen() {
                       <Text style={styles.itemMenuBtnText}>⋮</Text>
                   </TouchableOpacity>
 
-                  {/* ✅ EDITAR (AGORA ABRE O MODAL) */}
                   <TouchableOpacity
                     style={styles.btnMiniEdit}
                     onPress={() => {
@@ -398,29 +367,32 @@ export default function LibraryDetailScreen() {
                     value={query}
                     onChangeText={(t) => {
                         setQuery(t);
-                        if ((t || '').trim().length < 3) setShowTa(false);
+                        if ((t || '').trim().length < 3) {
+                            setShowTa(false);
+                            clearTypeahead(dispatch);
+                        }
                     }}
                     onFocus={() => {
-                        if ((query || '').trim().length >= 3 && taItems.length > 0) setShowTa(true);
+                        if ((query || '').trim().length >= 3 && (typeaheadItems || []).length > 0) setShowTa(true);
                     }}
                   />
 
-                  {/* ✅ TYPEAHEAD UI */}
-                  {(taLoading || showTa) && (
+                  {/* ✅ TYPEAHEAD UI (Flux) */}
+                  {(typeaheadLoading || showTa) && (
                     <View style={styles.taWrap}>
-                        {taLoading && <Text style={styles.taHint}>A procurar...</Text>}
+                        {typeaheadLoading && <Text style={styles.taHint}>A procurar...</Text>}
 
-                        {!taLoading && taError && (
-                          <Text style={styles.taHint}>Erro: {String(taError)}</Text>
+                        {!typeaheadLoading && typeaheadError && (
+                          <Text style={styles.taHint}>Erro: {String(typeaheadError)}</Text>
                         )}
 
-                        {!taLoading && !taError && taItems.length === 0 && (
+                        {!typeaheadLoading && !typeaheadError && (typeaheadItems || []).length === 0 && (
                           <Text style={styles.taHint}>Sem sugestões</Text>
                         )}
 
-                        {!taLoading && !taError && taItems.length > 0 && (
+                        {!typeaheadLoading && !typeaheadError && (typeaheadItems || []).length > 0 && (
                           <ScrollView keyboardShouldPersistTaps="handled">
-                              {taItems.map((sug, idx) => (
+                              {typeaheadItems.map((sug, idx) => (
                                 <TouchableOpacity
                                   key={`${sug}-${idx}`}
                                   style={styles.taItem}
@@ -622,12 +594,8 @@ export default function LibraryDetailScreen() {
                                   <TouchableOpacity onPress={() => setShowCheckoutModal(false)}>
                                       <Text>Cancelar</Text>
                                   </TouchableOpacity>
-                                  <TouchableOpacity onPress={handleCheckoutConfirm} style={styles.btnOk}>
-                                      {savingCheckout ? (
-                                        <ActivityIndicator color="#fff" />
-                                      ) : (
-                                        <Text style={{ color: '#fff' }}>Confirmar</Text>
-                                      )}
+                                  <TouchableOpacity onPress={handleCheckoutConfirm} style={styles.btnOk} disabled={savingCheckout}>
+                                      {savingCheckout ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff' }}>Confirmar</Text>}
                                   </TouchableOpacity>
                               </View>
                           </View>
@@ -649,12 +617,8 @@ export default function LibraryDetailScreen() {
                                   <TouchableOpacity onPress={() => setShowCheckinModal(false)}>
                                       <Text>Cancelar</Text>
                                   </TouchableOpacity>
-                                  <TouchableOpacity onPress={handleCheckinConfirm} style={styles.btnOk}>
-                                      {savingCheckin ? (
-                                        <ActivityIndicator color="#fff" />
-                                      ) : (
-                                        <Text style={{ color: '#fff' }}>Confirmar</Text>
-                                      )}
+                                  <TouchableOpacity onPress={handleCheckinConfirm} style={styles.btnOk} disabled={savingCheckin}>
+                                      {savingCheckin ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff' }}>Confirmar</Text>}
                                   </TouchableOpacity>
                               </View>
                           </View>
@@ -667,44 +631,14 @@ export default function LibraryDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-    safe: {
-        flex: 1,
-        backgroundColor: '#0b1220',
-    },
-    container: {
-        flex: 1,
-        padding: 16,
-    },
-    headerRow: {
-        flexDirection: 'row',
-        marginBottom: 15,
-        alignItems: 'center',
-    },
-    title: {
-        fontSize: 22,
-        fontWeight: '800',
-        color: '#fff',
-    },
-    subtitle: {
-        color: '#bbb',
-    },
-    btnAddMain: {
-        backgroundColor: '#1976d2',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 8,
-    },
-    btnAddMainText: {
-        color: '#fff',
-        fontWeight: 'bold',
-        fontSize: 12,
-    },
-    search: {
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 10,
-    },
+    safe: { flex: 1, backgroundColor: '#0b1220' },
+    container: { flex: 1, padding: 16 },
+    headerRow: { flexDirection: 'row', marginBottom: 15, alignItems: 'center' },
+    title: { fontSize: 22, fontWeight: '800', color: '#fff' },
+    subtitle: { color: '#bbb' },
+    btnAddMain: { backgroundColor: '#1976d2', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+    btnAddMainText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
+    search: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 10 },
 
     // ✅ TYPEAHEAD styles
     taWrap: {
@@ -716,20 +650,9 @@ const styles = StyleSheet.create({
         borderColor: '#e6e6e6',
         maxHeight: 220,
     },
-    taHint: {
-        padding: 12,
-        color: '#666',
-    },
-    taItem: {
-        paddingVertical: 12,
-        paddingHorizontal: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-    },
-    taItemText: {
-        color: '#111',
-        fontWeight: '600',
-    },
+    taHint: { padding: 12, color: '#666' },
+    taItem: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
+    taItemText: { color: '#111', fontWeight: '600' },
 
     bookCard: {
         backgroundColor: '#fff',
@@ -739,157 +662,37 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
-    bookClickArea: {
-        flexDirection: 'row',
-        flex: 1,
-        alignItems: 'center',
-    },
-    coverWrap: {
-        width: 60,
-        height: 85,
-        borderRadius: 8,
-        overflow: 'hidden',
-        backgroundColor: '#eee',
-    },
-    cover: {
-        width: '100%',
-        height: '100%',
-    },
-    coverFallback: {
-        width: '100%',
-        height: '100%',
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#eee',
-    },
-    coverFallbackText: {
-        color: '#666',
-        fontSize: 10,
-    },
-    bookInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    bookTitle: {
-        fontSize: 15,
-        fontWeight: 'bold',
-        color: '#111',
-    },
-    bookMeta: {
-        color: '#666',
-        fontSize: 13,
-        marginTop: 2,
-    },
-    itemActionsColumn: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingLeft: 10,
-    },
-    itemMenuBtn: {
-        padding: 8,
-    },
-    itemMenuBtnText: {
-        fontSize: 26,
-        color: '#163963',
-        fontWeight: 'bold',
-    },
-    btnMiniEdit: {
-        backgroundColor: '#163963',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 8,
-    },
-    btnTextEdit: {
-        color: '#fff',
-        fontSize: 10,
-        fontWeight: 'bold',
-    },
-    descHeader: {
-        flexDirection: 'row',
-        marginBottom: 20,
-    },
-    descCover: {
-        width: 100,
-        height: 150,
-        borderRadius: 10,
-    },
-    descLabel: {
-        fontWeight: 'bold',
-        fontSize: 16,
-        color: '#111',
-        marginTop: 10,
-    },
-    descText: {
-        fontSize: 14,
-        color: '#444',
-        lineHeight: 20,
-        marginTop: 5,
-    },
-    menuOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    menuCard: {
-        width: 250,
-        backgroundColor: '#fff',
-        borderRadius: 15,
-        overflow: 'hidden',
-    },
-    menuTitle: {
-        padding: 15,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        borderBottomWidth: 1,
-        borderColor: '#eee',
-    },
-    menuItem: {
-        padding: 15,
-        alignItems: 'center',
-        borderBottomWidth: 1,
-        borderColor: '#eee',
-    },
-    menuItemText: {
-        fontWeight: 'bold',
-        color: '#111',
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        justifyContent: 'center',
-        padding: 20,
-    },
-    modalCard: {
-        backgroundColor: '#fff',
-        borderRadius: 15,
-        padding: 20,
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: 5,
-    },
-    modalInput: {
-        borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: 10,
-        padding: 10,
-        marginBottom: 15,
-    },
-    modalBtns: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    btnOk: {
-        backgroundColor: '#1976d2',
-        padding: 10,
-        borderRadius: 8,
-    },
-    btnTextOk: {
-        color: '#fff',
-        fontWeight: 'bold',
-        textAlign: 'center',
-    },
+    bookClickArea: { flexDirection: 'row', flex: 1, alignItems: 'center' },
+    coverWrap: { width: 60, height: 85, borderRadius: 8, overflow: 'hidden', backgroundColor: '#eee' },
+    cover: { width: '100%', height: '100%' },
+    coverFallback: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', backgroundColor: '#eee' },
+    coverFallbackText: { color: '#666', fontSize: 10 },
+    bookInfo: { flex: 1, marginLeft: 12 },
+    bookTitle: { fontSize: 15, fontWeight: 'bold', color: '#111' },
+    bookMeta: { color: '#666', fontSize: 13, marginTop: 2 },
+
+    itemActionsColumn: { alignItems: 'center', justifyContent: 'center', paddingLeft: 10 },
+    itemMenuBtn: { padding: 8 },
+    itemMenuBtnText: { fontSize: 26, color: '#163963', fontWeight: 'bold' },
+    btnMiniEdit: { backgroundColor: '#163963', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+    btnTextEdit: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
+
+    descHeader: { flexDirection: 'row', marginBottom: 20 },
+    descCover: { width: 100, height: 150, borderRadius: 10 },
+    descLabel: { fontWeight: 'bold', fontSize: 16, color: '#111', marginTop: 10 },
+    descText: { fontSize: 14, color: '#444', lineHeight: 20, marginTop: 5 },
+
+    menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    menuCard: { width: 250, backgroundColor: '#fff', borderRadius: 15, overflow: 'hidden' },
+    menuTitle: { padding: 15, fontWeight: 'bold', textAlign: 'center', borderBottomWidth: 1, borderColor: '#eee' },
+    menuItem: { padding: 15, alignItems: 'center', borderBottomWidth: 1, borderColor: '#eee' },
+    menuItemText: { fontWeight: 'bold', color: '#111' },
+
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 20 },
+    modalCard: { backgroundColor: '#fff', borderRadius: 15, padding: 20 },
+    modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 5 },
+    modalInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 10, marginBottom: 15 },
+    modalBtns: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    btnOk: { backgroundColor: '#1976d2', padding: 10, borderRadius: 8 },
+    btnTextOk: { color: '#fff', fontWeight: 'bold', textAlign: 'center' },
 });

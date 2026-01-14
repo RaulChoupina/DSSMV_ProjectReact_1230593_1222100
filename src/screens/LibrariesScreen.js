@@ -381,7 +381,7 @@ const LibrariesScreen = () => {
               <View style={styles.modalButtons}>
                 <TouchableOpacity
                   style={[styles.modalButton, styles.modalButtonCancel]}
-                  onPress={() => {
+                  onPress={() => {        //botão que cancela
                     setShowAddModal(false);
                     setNewName('');
                     setNewAddress('');

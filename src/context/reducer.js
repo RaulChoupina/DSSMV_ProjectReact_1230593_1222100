@@ -19,6 +19,10 @@ import {
   CHECKIN_LIBRARY_BOOK_REQUEST,
   CHECKIN_LIBRARY_BOOK_SUCCESS,
   CHECKIN_LIBRARY_BOOK_FAILURE,
+  FETCH_TYPEAHEAD_REQUEST,
+  FETCH_TYPEAHEAD_SUCCESS,
+  FETCH_TYPEAHEAD_FAILURE,
+  CLEAR_TYPEAHEAD,
 } from './ActionTypes';
 
 const reducer = (state, action) => {
@@ -109,7 +113,45 @@ const reducer = (state, action) => {
         checkinError: action.payload?.error || action.payload,
       };
 
-  // EXTEND CHECKOUT
+
+    // TYPEAHEAD
+    case FETCH_TYPEAHEAD_REQUEST:
+      return {
+        ...state,
+        typeaheadLoading: true,
+        typeaheadError: null,
+        typeaheadQuery: action.payload?.query || '',
+        // opcional: não apaga lista enquanto carrega
+      };
+
+    case FETCH_TYPEAHEAD_SUCCESS:
+      return {
+        ...state,
+        typeaheadLoading: false,
+        typeaheadError: null,
+        typeaheadQuery: action.payload?.query || '',
+        typeaheadItems: action.payload?.items || [],
+      };
+
+    case FETCH_TYPEAHEAD_FAILURE:
+      return {
+        ...state,
+        typeaheadLoading: false,
+        typeaheadError: action.payload?.error || action.payload,
+        typeaheadItems: [],
+      };
+
+    case CLEAR_TYPEAHEAD:
+      return {
+        ...state,
+        typeaheadLoading: false,
+        typeaheadError: null,
+        typeaheadItems: [],
+        typeaheadQuery: '',
+      };
+
+
+    // EXTEND CHECKOUT
   case 'EXTEND_CHECKOUT_START':
   return {
     ...state,

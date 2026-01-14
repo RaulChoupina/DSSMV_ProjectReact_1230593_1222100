@@ -15,6 +15,10 @@ import {
   CHECKIN_LIBRARY_BOOK_REQUEST,
   CHECKIN_LIBRARY_BOOK_SUCCESS,
   CHECKIN_LIBRARY_BOOK_FAILURE,
+  FETCH_TYPEAHEAD_REQUEST,
+  FETCH_TYPEAHEAD_SUCCESS,
+  FETCH_TYPEAHEAD_FAILURE,
+  CLEAR_TYPEAHEAD,
 } from './ActionTypes';
 
 /* =========================
@@ -47,13 +51,13 @@ export function fetchLibraryBooks(dispatch, libraryId) {
 }
 
 /* =========================
-   ➕ ADD book (por ISBN) + stock
+    ADD book (por ISBN) + stock
    ========================= */
 export function addLibraryBook(
     dispatch,
     libraryId,
     isbn,
-    payload,        // ✅ { stock: number }
+    payload,        //  { stock: number }
     onSuccess,
     onFailure
 ) {
@@ -86,7 +90,7 @@ export function addLibraryBook(
   makeHTTPRequest(path, request, success, failure);
 }
 /* =========================
-   ✏️ UPDATE book (stock)
+    UPDATE book (stock)
    ========================= */
 export function updateLibraryBook(
   dispatch,
@@ -126,7 +130,7 @@ export function updateLibraryBook(
 }
 
 /* =========================
-   📤 CHECKOUT book (por ISBN + userId)
+    CHECKOUT book (por ISBN + userId)
    POST /v1/library/{libraryId}/book/{isbn}/checkout?userId=...
    ========================= */
 export function checkoutLibraryBook(
@@ -200,4 +204,47 @@ export function checkinLibraryBook(
   };
 
   makeHTTPRequest(path, request, success, failure);
+}
+
+/* =========================
+    TYPEAHEAD (Search)
+   GET /v1/search/typeahead?query=...
+   ========================= */
+export function fetchTypeahead(dispatch, query) {
+  dispatch({ type: FETCH_TYPEAHEAD_REQUEST, payload: { query } });
+
+  const q = (query || '').trim();
+  const path = `/v1/search/typeahead?query=${encodeURIComponent(q)}`;
+  const request = {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  };
+
+  const success = (data) => {
+    const results = [
+      ...(data?.titles || []),
+      ...(data?.authors || []),
+      ...(data?.subjects || []),
+    ];
+
+    const uniq = [...new Set(results.map((x) => String(x)))].slice(0, 10);
+
+    dispatch({
+      type: FETCH_TYPEAHEAD_SUCCESS,
+      payload: { items: uniq, query: q },
+    });
+  };
+
+  const failure = (errMsg) => {
+    dispatch({
+      type: FETCH_TYPEAHEAD_FAILURE,
+      payload: { error: errMsg, query: q },
+    });
+  };
+
+  makeHTTPRequest(path, request, success, failure);
+}
+
+export function clearTypeahead(dispatch) {
+  dispatch({ type: CLEAR_TYPEAHEAD });
 }

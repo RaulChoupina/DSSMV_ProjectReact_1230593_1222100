@@ -96,9 +96,9 @@ export default function CheckInScreen() {
 
   const books = useMemo(() => {
     const src = localBooks.length ? localBooks : fallbackBooks;
-    if (!query.trim()) return src;
+    if (!query.trim()) return src; //devolve lista inteira sem query de pesquisa
 
-    const q = query.trim().toLowerCase();
+    const q = query.trim().toLowerCase(); // filtro com a pesquisa
     return src.filter((b) => {
       const id = String(getBookId(b) ?? "").toLowerCase();
       const title = String(getBookTitle(b) ?? "").toLowerCase();

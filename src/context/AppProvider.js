@@ -37,6 +37,12 @@ const initialState = {
   // ADD/UPDATE STOCK (o reducer usa booksLoading/booksError)
   booksLoading: false,
   booksError: null,
+
+  typeaheadLoading: false,
+  typeaheadError: null,
+  typeaheadItems: [],
+  typeaheadQuery: '',
+
 };
 
 class AppProvider extends Component {
